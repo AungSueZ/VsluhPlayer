@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Вслух — музыкальный плеер для Windows</title>
-<meta name="description" content="Плеер, в котором строка песни заливается по словам ровно в такт. Двенадцать визуализаций с реального спектра. Своей музыки нет — найдёт и скачает сам.">
+<meta name="description" content="Плеер, в котором строка песни заливается по словам ровно в такт. Восемнадцать визуализаций с реального спектра. Своей музыки нет — найдёт и скачает сам.">
 <link rel="icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon.png">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Вслух — музыкальный плеер для Windows">
-<meta property="og:description" content="Строка песни заливается по словам ровно в такт. Двенадцать визуализаций с реального спектра. Своей музыки нет — найдёт и скачает сам.">
+<meta property="og:description" content="Строка песни заливается по словам ровно в такт. Восемнадцать визуализаций с реального спектра. Своей музыки нет — найдёт и скачает сам.">
 <meta property="og:image" content="https://aungsuez.github.io/VsluhPlayer/shots/karaoke.jpg">
 <meta property="og:url" content="https://aungsuez.github.io/VsluhPlayer/">
 <meta name="twitter:card" content="summary_large_image">
@@ -242,8 +242,8 @@ footer a{color:var(--dim)}
       <p class="lead">Музыкальный плеер для Windows, в котором <b>строка заливается по словам</b> — ровно по мере того, как её поют. А музыку, которой у тебя нет, он найдёт и скачает сам.</p>
 
       <div class="grab">
-        <a class="btn" id="dl" href="https://github.com/AungSueZ/VsluhPlayer/releases/download/v1.0.1/Vsluh-Setup-1.0.1.exe">
-          Скачать для Windows <small id="dlmeta">1.0.1 · 108 МБ</small>
+        <a class="btn" id="dl" href="https://github.com/AungSueZ/VsluhPlayer/releases/download/v1.1.0/Vsluh-Setup-1.1.0.exe">
+          Скачать для Windows <small id="dlmeta">1.1.0 · 108 МБ</small>
         </a>
         <a class="alt" href="https://github.com/AungSueZ/VsluhPlayer/releases">все версии</a>
       </div>
@@ -280,9 +280,10 @@ footer a{color:var(--dim)}
       <div class="row flip">
         <div class="txt">
           <p class="eyebrow">Вид</p>
-          <h2>Двенадцать визуализаций с живого спектра</h2>
-          <p>Кольцо, круговая волна, осциллограф, столбики, пыль, туннель, водопад-спектрограмма, зеркало, спираль, лепестки, варп, горизонт. Все <b>рисуются со звука</b>, а не крутятся по таймеру.</p>
-          <p>Плюс десять готовых тем, пять раскладок экрана, свой цвет или фон по ссылке — и полноэкранный режим, где не остаётся ничего, кроме музыки.</p>
+          <h2>Восемнадцать визуализаций с живого спектра</h2>
+          <p>Аврора, сфера, калейдоскоп, ливень, пульсар, лента, кольцо, круговая волна, осциллограф, столбики, пыль, туннель, водопад-спектрограмма, зеркало, спираль, лепестки, варп, горизонт. Все <b>рисуются со звука</b>, а не крутятся по таймеру.</p>
+          <p>У каждой своя скорость и насыщенность — последнюю стоит убавить, если картинка спорит с текстом песни. А можно и вовсе <b>не выбирать</b>: плеер умеет менять вид сам, со сменой трека или по таймеру.</p>
+          <p>Плюс шестнадцать готовых тем, пять раскладок экрана, свой цвет или фон по ссылке — и полноэкранный режим, где не остаётся ничего, кроме музыки.</p>
         </div>
         <div class="pic"><div class="shot">
           <img src="shots/viz.jpg" width="1600" height="862" loading="lazy" alt="Визуализация «зеркало»: крупная симметричная волна во всю ширину окна под текстом песни">
@@ -321,6 +322,7 @@ footer a{color:var(--dim)}
     <section class="more">
       <h2>И по мелочи</h2>
       <dl>
+        <div><dt>Профили оформления</dt><dd>Настроил вид под себя — сохранил. Дальше переключаешься одним нажатием.</dd></div>
         <div><dt>Видит соседей</dt><dd>Показывает и переключает то, что играет в Spotify, Яндекс Музыке, браузере, AIMP, Telegram.</dd></div>
         <div><dt>Эквалайзер</dt><dd>Десять полос и готовые наборы. Скорость от 0,5× до 2× — с тоном или без.</dd></div>
         <div><dt>Горячие клавиши</dt><dd>Работают поверх других окон. Медиа-клавиши можно забрать себе.</dd></div>
@@ -342,10 +344,10 @@ footer a{color:var(--dim)}
 
         <h3>Не веришь на слово — проверь</h3>
         <p>Сверь контрольную сумму скачанного файла. В PowerShell:</p>
-        <pre>Get-FileHash "путь\к\Vsluh-Setup-1.0.1.exe" -Algorithm SHA256</pre>
+        <pre>Get-FileHash "путь\к\Vsluh-Setup-1.1.0.exe" -Algorithm SHA256</pre>
         <p>Должно получиться ровно это:</p>
-        <pre><b>fa4d4d0c7da613907ac609331b7408dcf3787766a33437716274cfc7cdfc3667</b></pre>
-        <p>Не сошлось — файл скачался битым или это не он. Ставить не надо. <span style="color:var(--dim2)">Сумма относится к версии 1.0.1; для других версий она указана на странице релиза.</span></p>
+        <pre><b>8af079ae0dcd0d462c6b6320601430a5df88a245c30ced5037f28b2f28f72e12</b></pre>
+        <p>Не сошлось — файл скачался битым или это не он. Ставить не надо. <span style="color:var(--dim2)">Сумма относится к версии 1.1.0; для других версий она указана на странице релиза.</span></p>
 
         <h3>Первый запуск</h3>
         <ol>
@@ -376,7 +378,7 @@ footer a{color:var(--dim)}
 <script>
 // версия, под которую написаны кнопка и контрольная сумма выше.
 // вышла новая - страница это заметит сама и скажет об этом
-var SHIPPED = '1.0.1';
+var SHIPPED = '1.1.0';
 
 /* ---- строка, которая заливается по словам: то же, что делает плеер ---- */
 (function () {
@@ -423,6 +425,16 @@ var SHIPPED = '1.0.1';
   requestAnimationFrame(frame);
 })();
 
+// 1.10.0 больше 1.9.0, хотя строкой оно меньше - сравниваем по числам
+function newerThan(a, b) {
+  var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  for (var i = 0; i < Math.max(x.length, y.length); i++) {
+    var d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+
 /* ---- если на GitHub уже лежит версия свежее - сказать честно ---- */
 (function () {
   fetch('https://api.github.com/repos/AungSueZ/VsluhPlayer/releases/latest')
@@ -433,9 +445,10 @@ var SHIPPED = '1.0.1';
 
       var exe = (rel.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); })[0];
 
-      if (tag === SHIPPED) {
-        // та же версия - уточним размер по факту, вдруг я ошибся в тексте
-        if (exe) document.getElementById('dlmeta').textContent =
+      // релиз ещё не выложен и на сервере лежит версия постарее: страница
+      // написана под новую, её и оставляем. иначе кнопка вела бы назад
+      if (!newerThan(tag, SHIPPED)) {
+        if (tag === SHIPPED && exe) document.getElementById('dlmeta').textContent =
           tag + ' · ' + Math.round(exe.size / 1048576) + ' МБ';
         return;
       }
