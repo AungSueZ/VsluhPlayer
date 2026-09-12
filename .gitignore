@@ -10,3 +10,4 @@ yt-dlp
 *.part
 Thumbs.db
 .DS_Store
+__pycache__/
