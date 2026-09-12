@@ -8,7 +8,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64",
+    "prebuild": "node tools/clean-dist.js",
+    "clean": "node tools/clean-dist.js"
   },
   "dependencies": {
     "@coooookies/windows-smtc-monitor": "^1.0.12",
