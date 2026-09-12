@@ -22,7 +22,11 @@ html,body{height:100%;overflow:hidden}
 body{
   background:var(--bg);
   color:var(--ink);
-  font:14px/1.45 var(--font-ui);
+  /* не сокращённой записью font: она сбрасывает начертание, а его задаёт тема */
+  font-family:var(--font-ui);
+  font-size:var(--ui-size,14px);
+  line-height:1.45;
+  font-weight:var(--ui-weight,400);
   -webkit-font-smoothing:antialiased;
   user-select:none;
   cursor:default;
@@ -957,6 +961,17 @@ body.paused .row-bars i{animation-play-state:paused}
 .chip:hover{background:var(--glass2);color:var(--ink)}
 .chip.on{background:rgba(var(--ac),.22);border-color:rgba(var(--ac),.45);color:#fff}
 .chip em{font-style:normal;font-size:11px;opacity:.55}
+/* нижняя панель: круглая обложка и прогресс заливкой вместо линии */
+body[data-barround="1"] .bar-art{border-radius:50%}
+body[data-barprog="fill"] .bar{position:relative;overflow:hidden}
+body[data-barprog="fill"] .bar::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;z-index:0;pointer-events:none;
+  width:var(--pg,0%);
+  background:linear-gradient(90deg,rgba(var(--ac),.05),rgba(var(--ac),.16));
+  transition:width .25s linear;
+}
+body[data-barprog="fill"] .bar > *{position:relative;z-index:1}
+
 .chip-add{border-style:dashed;color:var(--dim2)}
 /* волна - не вкладка, а действие, поэтому выглядит иначе, чем остальные чипы */
 .chip-wave{

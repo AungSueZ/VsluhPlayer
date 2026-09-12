@@ -322,6 +322,8 @@ function paintProgress() {
   const p = d ? Math.min(100, c / d * 100) : 0;
   $('seek-fill').style.width = p + '%';
   $('seek-knob').style.left = p + '%';
+  // тем же числом заполняется нижняя панель, когда прогресс показан заливкой
+  document.documentElement.style.setProperty('--pg', p.toFixed(2) + '%');
   $('t-cur').textContent = fmt(c);
   $('t-dur').textContent = fmt(d);
   tickLyrics();
@@ -2136,6 +2138,14 @@ function applyTheme() {
   root.setProperty('--bg-dim', ((th.bgDim ?? 42) / 100).toFixed(2));
   if (th.beat === false) root.setProperty('--beat', '1');
 
+  root.setProperty('--ui-size', (th.uiSize || 14) + 'px');
+  // ноль значит "не вмешиваться": начертание останется тем, что задала тема
+  if (th.uiWeight) root.setProperty('--ui-weight', String(th.uiWeight));
+  else root.removeProperty('--ui-weight');
+
+  document.body.dataset.barround = th.barRound ? '1' : '0';
+  document.body.dataset.barprog = th.barProg || 'line';
+
   $('px').style.display = S.cfg.particles ? '' : 'none';
   accentFrom(coverUrl(S.track));
   applyBg();
@@ -3247,7 +3257,10 @@ function wireDrop() {
 }
 
 /* ---- вкладка "Темы" ---- */
-const PALETTE = ['#9b8cff', '#ff4fd8', '#ff8a3d', '#4ff0c0', '#57a6ff', '#ff5c5c', '#ffd93d', '#e8e6ef'];
+const PALETTE = [
+  '#ff5c5c', '#ff8a3d', '#ffd93d', '#8cd94f', '#4ff0c0', '#3fd0d6', '#57a6ff',
+  '#6c7bff', '#9b8cff', '#d47aff', '#ff4fd8', '#ff7aa8', '#b0a89c', '#e8e6ef'
+];
 let repaintTheme = null;
 
 function wireThemes() {
@@ -3277,6 +3290,14 @@ function wireThemes() {
 
   const pAuto = bindPick('p-vizauto', () => String(th().vizAuto || 'off'),
                          v => setTheme({ vizAuto: v }));
+  const pSize = bindPick('p-uisize', () => String(th().uiSize || 14),
+                         v => setTheme({ uiSize: Number(v) }));
+  const pWgt  = bindPick('p-uiweight', () => String(th().uiWeight || 0),
+                         v => setTheme({ uiWeight: Number(v) }));
+  const pBarP = bindPick('p-barprog', () => String(th().barProg || 'line'),
+                         v => setTheme({ barProg: v }));
+  const swBarR = bindSwitch('s-barround', () => !!th().barRound,
+                            v => setTheme({ barRound: v }));
 
   const rPow  = bindRange('r-vizpower', () => th().vizPower ?? 100,
                           v => setTheme({ vizPower: v }), v => v + '%');
@@ -3365,8 +3386,9 @@ function wireThemes() {
   repaintTheme = () => {
     fUi(); fLy(); paintPal();
     pLay(); pViz(); pDisc(); pBg(); pAuto();
+    pSize(); pWgt(); pBarP();
     rPow(); rSpd(); rAl(); rBlur(); rDim();
-    swSpin(); swBeat(); swPx(); swAc();
+    swSpin(); swBeat(); swPx(); swAc(); swBarR();
     paintVid(); renderPresets(); renderProfiles();
   };
 }

@@ -328,6 +328,40 @@
           <div class="fonts" id="f-ui"></div>
           <div class="font-lab">Название и текст песни</div>
           <div class="fonts" id="f-ly"></div>
+
+          <div class="pick-row">
+            <span class="pick-lab">Размер</span>
+            <div class="pick" id="p-uisize">
+              <button data-v="12">12</button>
+              <button data-v="13">13</button>
+              <button data-v="14">14</button>
+              <button data-v="15">15</button>
+              <button data-v="16">16</button>
+            </div>
+          </div>
+          <div class="pick-row">
+            <span class="pick-lab">Начертание</span>
+            <div class="pick" id="p-uiweight">
+              <button data-v="0">Как в теме</button>
+              <button data-v="400">Тонкое</button>
+              <button data-v="500">Обычное</button>
+              <button data-v="600">Плотное</button>
+            </div>
+          </div>
+          <p class="hint">Размер и начертание действуют на весь интерфейс, кроме текста песни —
+             у него свои настройки в «Настройках».</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Нижняя панель</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Прогресс</span>
+            <div class="pick" id="p-barprog">
+              <button data-v="line" title="привычная полоса со ползунком">Линия</button>
+              <button data-v="fill" title="панель заполняется цветом по мере трека">Заливкой</button>
+            </div>
+          </div>
+          <label class="sw"><input type="checkbox" id="s-barround"><i></i><span>Круглая обложка внизу</span></label>
         </div>
 
         <div class="set-block">
