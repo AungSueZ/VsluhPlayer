@@ -242,7 +242,8 @@ footer a{color:var(--dim)}
       <p class="lead">Музыкальный плеер для Windows, в котором <b>строка заливается по словам</b> — ровно по мере того, как её поют. А музыку, которой у тебя нет, он найдёт и скачает сам.</p>
 
       <div class="grab">
-        <a class="btn" id="dl" href="https://github.com/AungSueZ/VsluhPlayer/releases/download/v1.1.0/Vsluh-Setup-1.1.0.exe">
+        <!-- тег именно такой, как на GitHub: у v1.0.1 он с буквой, у 1.1.0 - без -->
+        <a class="btn" id="dl" href="https://github.com/AungSueZ/VsluhPlayer/releases/download/1.1.0/Vsluh-Setup-1.1.0.exe">
           Скачать для Windows <small id="dlmeta">1.1.0 · 108 МБ</small>
         </a>
         <a class="alt" href="https://github.com/AungSueZ/VsluhPlayer/releases">все версии</a>
@@ -448,8 +449,13 @@ function newerThan(a, b) {
       // релиз ещё не выложен и на сервере лежит версия постарее: страница
       // написана под новую, её и оставляем. иначе кнопка вела бы назад
       if (!newerThan(tag, SHIPPED)) {
-        if (tag === SHIPPED && exe) document.getElementById('dlmeta').textContent =
-          tag + ' · ' + Math.round(exe.size / 1048576) + ' МБ';
+        // та же версия - берём ссылку и размер из самого релиза.
+        // так опечатка в теге (v1.1.0 против 1.1.0) чинится сама собой
+        if (tag === SHIPPED && exe) {
+          document.getElementById('dl').href = exe.browser_download_url;
+          document.getElementById('dlmeta').textContent =
+            tag + ' · ' + Math.round(exe.size / 1048576) + ' МБ';
+        }
         return;
       }
 
