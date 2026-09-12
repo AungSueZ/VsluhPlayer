@@ -4131,7 +4131,7 @@ function drawViz() {
   vizX.globalAlpha = vizA;
 
   const kind = th.viz || 'ring';
-  const big = window.VIZ2 && window.VIZ2[kind];
+  const big = (window.VIZ2 && window.VIZ2[kind]) || (window.VIZ3 && window.VIZ3[kind]);
   if (big) {
     big({
       x: vizX, w: vw, h: vh, geo: geo,
@@ -4164,8 +4164,9 @@ function drawViz() {
 // "выключить" в переборе не участвует: незачем самим себя гасить
 const VIZ_CYCLE = [
   'ring', 'radial', 'tunnel', 'spiral', 'bloom', 'sphere', 'kaleid', 'pulsar',
-  'wave', 'bars', 'mirror', 'fall', 'aurora', 'ribbon',
-  'dust', 'warp', 'grid', 'rain'
+  'vector', 'radar',
+  'wave', 'bars', 'mirror', 'fall', 'aurora', 'ribbon', 'ridge', 'strings', 'pendulum',
+  'dust', 'warp', 'grid', 'rain', 'ripple'
 ];
 let vizAutoAt = 0;
 
