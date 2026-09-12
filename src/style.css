@@ -253,10 +253,93 @@ a:hover{text-decoration:underline}
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
 
+/* ---- неон: буквы стоят контуром и загораются по мере пения ---- */
+.ly.t-neon .ly-item.on{text-shadow:none}
+.ly.t-neon .ly-w{
+  -webkit-text-stroke:.7px rgba(var(--ac),.4);
+  color:transparent;
+}
+.ly.t-neon .ly-item.on .ly-w{
+  -webkit-text-stroke:.9px rgba(var(--ac),.9);
+  background-image:linear-gradient(90deg,
+    rgb(var(--ac)) var(--wp,0%),transparent var(--wp,0%));
+  -webkit-background-clip:text;background-clip:text;
+}
+.ly.t-neon .ly-item.on .ly-txt{filter:drop-shadow(0 0 14px rgba(var(--ac),.55))}
+
+/* ---- маркер: строку закрашивают маркером, текст остаётся белым ---- */
+.ly.t-marker .ly-item.on{text-shadow:none}
+.ly.t-marker .ly-item.on .ly-w{
+  /* полоса не во всю высоту буквы и полупрозрачная, иначе выходит
+     не след маркера, а выделение текста мышью */
+  background-image:linear-gradient(90deg,
+    rgba(var(--ac),.52) var(--wp,0%),rgba(var(--ac),0) var(--wp,0%));
+  background-repeat:no-repeat;
+  background-size:100% 52%;
+  background-position:0 88%;
+  color:#fff;
+  /* поля наружу, отступ обратно: полоса перекрывает пробелы между словами
+     и получается один непрерывный след, а не отдельные плашки */
+  padding:0 .22em;margin:0 -.22em;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+}
+
+/* ---- волна: слово приподнимается, пока его тянут ---- */
+.ly.t-wave .ly-w{
+  display:inline-block;
+  transform:translateY(calc(var(--lift,0) * -.34em));
+  transition:transform .12s linear;
+}
+.ly.t-wave .ly-item.on .ly-w{
+  color:rgba(255,255,255,calc(.45 + var(--lift,0) * .55));
+  text-shadow:0 calc(var(--lift,0) * 6px) calc(var(--lift,0) * 20px) rgba(var(--ac),.6);
+}
+
+/* ---- разлёт: слова слетаются на место, когда строка подходит ---- */
+.ly.t-scatter .ly-w{
+  display:inline-block;opacity:.18;
+  transform:translate(calc(var(--dx,0) * 1px),calc(var(--dy,0) * 1px))
+            rotate(calc(var(--rr,0) * 1deg));
+  transition:transform .55s var(--ease),opacity .55s var(--ease);
+  transition-delay:calc(var(--i,0) * 35ms);
+}
+.ly.t-scatter .ly-item.on .ly-w{opacity:1;transform:none}
+
+/* ---- эхо: спетое уплывает в сторону и размывается, будущее просто ждёт ---- */
+.ly.t-echo .ly-item{
+  /* спетое растворяется быстро, предстоящее остаётся читаемым - на этой
+     разнице эхо и держится. одинаковое затухание давало просто "мягко" */
+  opacity:calc(1 - var(--past,0) * .42 - var(--soon,0) * .18);
+  transform:translate(calc(var(--past,0) * 17px),calc(var(--past,0) * -11px))
+            scale(calc(1 - var(--past,0) * .05));
+  filter:blur(calc(var(--past,0) * 1.7px));
+}
+.ly.t-echo .ly-item.on{transform:none;filter:none;opacity:1}
+
+/* ---- слово: на экране только то, которое поют прямо сейчас ---- */
+.ly.t-word .ly-item{opacity:0;transform:none;filter:none;text-align:center}
+.ly.t-word .ly-item.on{opacity:1;text-shadow:none}
+/* пробелы и непоющиеся слова схлопываем в ноль - строка сжимается до одного слова */
+.ly.t-word .ly-txt{font-size:0;display:block}
+.ly.t-word .ly-w{display:inline-block;font-size:0;transition:none}
+.ly.t-word .ly-item.on .ly-w.now{
+  font-size:calc(var(--ly-fs) * 2.4);
+  color:#fff;font-weight:700;line-height:1.15;
+  text-shadow:0 0 42px rgba(var(--ac),.6),0 0 6px rgba(var(--ac),.3);
+  animation:wordIn .2s var(--ease);
+}
+@keyframes wordIn{from{transform:scale(.84);opacity:.35}to{transform:scale(1);opacity:1}}
+
 /* темы */
 .ly.t-focus{--ly-base:24px; --ly-fade:.46; --ly-sc:.07; --ly-h:210px}
 .ly.t-type {--ly-base:22px; --ly-fade:.46; --ly-sc:.05; --ly-h:200px}
 .ly.t-feed {--ly-base:16px; --ly-fade:.15; --ly-sc:.012; --ly-h:270px}
+.ly.t-neon {--ly-base:23px; --ly-fade:.4;  --ly-sc:.05; --ly-h:210px}
+.ly.t-marker{--ly-base:20px;--ly-fade:.38; --ly-sc:.04; --ly-h:214px}
+.ly.t-wave {--ly-base:22px; --ly-fade:.4;  --ly-sc:.045;--ly-h:220px}
+.ly.t-scatter{--ly-base:21px;--ly-fade:.42;--ly-sc:.05; --ly-h:214px}
+.ly.t-echo {--ly-base:20px; --ly-fade:.0;  --ly-sc:0;   --ly-h:230px}
+.ly.t-word {--ly-base:19px; --ly-fade:.0;  --ly-sc:0;   --ly-h:190px}
 .ly.blur{--ly-blur:1.15px}
 .ly.t-feed.blur{--ly-blur:.5px}   /* в ленте видно много строк, сильное размытие тут лишнее */
 
@@ -269,6 +352,18 @@ a:hover{text-decoration:underline}
 .ly.t-type.sz-lg{--ly-base:27px}
 .ly.t-feed.sz-sm{--ly-base:14px}
 .ly.t-feed.sz-lg{--ly-base:19px}
+.ly.t-neon.sz-sm{--ly-base:19px}
+.ly.t-neon.sz-lg{--ly-base:28px}
+.ly.t-wave.sz-sm{--ly-base:18px}
+.ly.t-wave.sz-lg{--ly-base:27px}
+.ly.t-marker.sz-sm{--ly-base:17px}
+.ly.t-marker.sz-lg{--ly-base:25px}
+.ly.t-scatter.sz-sm{--ly-base:17px}
+.ly.t-scatter.sz-lg{--ly-base:26px}
+.ly.t-echo.sz-sm{--ly-base:17px}
+.ly.t-echo.sz-lg{--ly-base:25px}
+.ly.t-word.sz-sm{--ly-base:16px}
+.ly.t-word.sz-lg{--ly-base:23px}
 
 /* строку можно ткнуть и перемотать на это место */
 .ly:not(.plain) .ly-item{cursor:pointer}

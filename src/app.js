@@ -359,6 +359,13 @@ function lyClasses() {
     + (LY.lines.length ? '' : ' off');
 }
 
+// псевдослучайное, но всегда одно и то же для одного и того же слова:
+// разброс должен быть у каждого слова свой, но не меняться от кадра к кадру
+function spread(n, salt) {
+  const x = Math.sin((n + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function buildLyrics(res) {
   const track = $('ly-track');
   track.textContent = '';
@@ -367,6 +374,7 @@ function buildLyrics(res) {
   LY.lines = res.lines || [];
   LY.plain = !res.synced;
   LY.cur = -2;
+  LY.nowWord = null;
 
   for (const l of LY.lines) {
     const d = el('div', 'ly-item' + (!l.text && !LY.plain ? ' pause' : ''));
@@ -381,6 +389,13 @@ function buildLyrics(res) {
       if (/^\s+$/.test(part)) { s.appendChild(document.createTextNode(part)); at += part.length; continue; }
       const w = el('i', 'ly-w');
       w.textContent = part;
+      // разброс для "разлёта" и задержка для очереди. считаем от номера слова,
+      // а не случайно: иначе при каждой перерисовке слова прыгали бы заново
+      const n = words.length;
+      w.style.setProperty('--i', n);
+      w.style.setProperty('--dx', (spread(n, 1) * 70 - 35).toFixed(1));
+      w.style.setProperty('--dy', (spread(n, 2) * 44 - 22).toFixed(1));
+      w.style.setProperty('--rr', (spread(n, 3) * 24 - 12).toFixed(1));
       s.appendChild(w);
       words.push({ node: w, at, len: part.length });
       at += part.length;
@@ -458,9 +473,12 @@ function lineFill(t, i) {
   return Math.max(0, Math.min(1, p));
 }
 
+// подачи, которым нужно знать, какая часть строки уже спета
+const FILL_THEMES = { karaoke: 1, type: 1, neon: 1, marker: 1, wave: 1, word: 1 };
+
 function fillLine(t, i) {
   const th = S.cfg.lyricsTheme;
-  if (th !== 'karaoke' && th !== 'type') return;
+  if (!FILL_THEMES[th]) return;
 
   const line = LY.lines[i], words = LY.words[i];
   if (!line || !words || !words.length) return;
@@ -470,11 +488,39 @@ function fillLine(t, i) {
 
   // раскидываем долю по словам: каждое знает, с какого символа строки оно начинается
   const target = p * ((line.text || '').length || 1);
-  for (const w of words) {
+  let now = -1;
+
+  for (let n = 0; n < words.length; n++) {
+    const w = words[n];
     let k = (target - w.at) / w.len;
     k = Math.max(0, Math.min(1, k));
     if (th === 'type') k = Math.ceil(k * w.len) / w.len;     // ступеньками, по буквам
     w.node.style.setProperty('--wp', (k * 100).toFixed(1) + '%');
+
+    if (k > 0) now = n;                                      // последнее начатое слово
+
+    // "волна": гребень идёт по строке и задевает соседние слова.
+    // если поднимать только то слово, которое поют, поднимается ровно одно -
+    // никакой волны не видно, просто дёрганье туда-сюда
+    if (th === 'wave') {
+      const c = w.at + w.len / 2;            // середина слова в символах
+      const dd = (target - c) / 7;           // семь символов - половина ширины гребня
+      const lift = p >= 0.999 || Math.abs(dd) >= 1 ? 0 : Math.cos(dd * Math.PI / 2);
+      w.node.style.setProperty('--lift', lift.toFixed(3));
+    }
+  }
+
+  // "слово": на экране только то, которое поют прямо сейчас
+  if (th === 'word') {
+    const node = now >= 0 ? words[now].node : null;
+    if (node !== LY.nowWord) {
+      if (LY.nowWord) LY.nowWord.classList.remove('now');
+      if (node) node.classList.add('now');
+      LY.nowWord = node;
+    }
+  } else if (LY.nowWord) {
+    LY.nowWord.classList.remove('now');
+    LY.nowWord = null;
   }
 }
 
@@ -491,7 +537,13 @@ function tickLyrics() {
     if (LY.items[LY.cur]) LY.items[LY.cur].classList.remove('on');
     LY.cur = i;
     for (let k = 0; k < LY.items.length; k++) {
-      LY.items[k].style.setProperty('--d', Math.min(7, Math.abs(k - i)));
+      const d = Math.min(7, Math.abs(k - i));
+      const st = LY.items[k].style;
+      st.setProperty('--d', d);
+      // спетое и предстоящее ведут себя по-разному: "эхо" уносит прошлое
+      // в сторону, а будущее оставляет на месте. одного расстояния тут мало
+      st.setProperty('--past', k < i ? d : 0);
+      st.setProperty('--soon', k > i ? d : 0);
     }
     if (LY.items[i]) LY.items[i].classList.add('on');
     centerLyrics(i);
@@ -502,7 +554,7 @@ function tickLyrics() {
 let lyGen = 0;
 async function loadLyrics(t) {
   const gen = ++lyGen;
-  LY.lines = []; LY.items = []; LY.cur = -2; LY.plain = false;
+  LY.lines = []; LY.items = []; LY.cur = -2; LY.plain = false; LY.nowWord = null;
   $('ly-track').textContent = '';
   $('ly-track').style.transform = '';
   lyClasses();

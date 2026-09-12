@@ -392,12 +392,23 @@
 
           <div class="pick-row">
             <span class="pick-lab">Подача</span>
-            <div class="pick" id="p-theme">
+            <div class="pick pick-wrap" id="p-theme">
+              <div class="viz-group">Спокойно</div>
               <button data-v="soft"     title="строки плавно проезжают, соседние гаснут">Мягко</button>
-              <button data-v="karaoke"  title="строка заливается цветом по мере пения">Караоке</button>
               <button data-v="focus"    title="только текущая строка, крупно, остальное в размытии">Фокус</button>
               <button data-v="feed"     title="весь текст лентой, как в Apple Music">Лента</button>
+              <button data-v="echo"     title="спетые строки уплывают в сторону и размываются">Эхо</button>
+
+              <div class="viz-group">Заливкой по словам</div>
+              <button data-v="karaoke"  title="строка заливается цветом по мере пения">Караоке</button>
+              <button data-v="neon"     title="буквы стоят контуром и загораются изнутри">Неон</button>
+              <button data-v="marker"   title="строку закрашивают маркером, слово за словом">Маркер</button>
               <button data-v="type"     title="строка печатается по буквам">Машинка</button>
+
+              <div class="viz-group">С движением</div>
+              <button data-v="wave"     title="слово приподнимается, пока его тянут">Волна</button>
+              <button data-v="scatter"  title="слова разлетелись и слетаются на место">Разлёт</button>
+              <button data-v="word"     title="на экране только то слово, которое поют сейчас">Слово</button>
             </div>
           </div>
 
