@@ -2091,6 +2091,84 @@ async function loadDlStatus() {
   if (sqResults.length) renderSearch();
 }
 
+/* ---------- первый запуск ---------- */
+
+function helloState(msg, bad) {
+  const n = $('hello-state');
+  if (!n) return;
+  n.textContent = msg || '';
+  n.classList.toggle('bad', !!bad);
+}
+
+function helloBusy(on) {
+  for (const id of ['hello-local', 'hello-net']) $(id).disabled = on;
+}
+
+function closeHello() {
+  $('hello').hidden = true;
+  S.cfg.welcomed = true;
+  window.api.settings.set({ welcomed: true });
+}
+
+function wireHello() {
+  // своя музыка: папка, сканирование и сразу в библиотеку
+  $('hello-local').onclick = async () => {
+    helloBusy(true);
+    helloState('жду, пока выберешь папку…');
+    S.cfg.folders = await window.api.lib.pick();
+
+    if (!S.cfg.folders.length) {
+      helloBusy(false);
+      helloState('папку так и не выбрали — можно нажать ещё раз');
+      return;
+    }
+
+    helloState('читаю файлы…');
+    renderFolders();
+    closeHello();
+    go('library');
+    await scan();
+  };
+
+  // своей музыки нет: ставим yt-dlp и открываем поиск
+  $('hello-net').onclick = async () => {
+    helloBusy(true);
+
+    if (!DL.ok) {
+      helloState('качаю yt-dlp, это займёт полминуты…');
+      const off = window.api.dl.onInstall(p => {
+        if (p !== null) helloState('качаю yt-dlp — ' + p + '%');
+      });
+      const r = await window.api.dl.install();
+      if (off) off();
+
+      if (r.error) {
+        helloBusy(false);
+        helloState('не вышло: ' + r.error + ' — можно поставить позже в настройках', true);
+        return;
+      }
+      await loadDlStatus();
+    }
+
+    closeHello();
+    go('search');
+    $('sm-yt').click();
+    setTimeout(() => $('sq').focus(), 120);
+    toast('Впиши исполнителя или название — найду и скачаю');
+  };
+
+  $('hello-skip').onclick = () => { closeHello(); go('settings'); };
+}
+
+function maybeHello() {
+  // показываем только тому, у кого ещё ничего нет
+  if (S.cfg.welcomed || S.cfg.folders.length || S.tracks.length) return false;
+  $('hello').hidden = false;
+  helloState('');
+  helloBusy(false);
+  return true;
+}
+
 /* ---------- обновления ---------- */
 
 const UPD = { state: 'idle', version: '', next: '', percent: 0, error: '' };
@@ -3505,10 +3583,16 @@ requestAnimationFrame(drawPx);
 
   go(S.cfg.view && document.getElementById('v-' + S.cfg.view) ? S.cfg.view : 'now');
 
-  if (!S.cfg.folders.length) {
-    go('settings');
-    toast('Добавь папку с музыкой, чтобы начать');
-  } else if (!S.tracks.length) {
-    scan();   // папки есть, а библиотеки нет - собираем сами
+  safe('первый запуск', wireHello);
+
+  if (!maybeHello()) {
+    if (S.cfg.folders.length && !S.tracks.length) {
+      scan();   // папки есть, а библиотеки нет - собираем сами
+    } else if (!S.cfg.folders.length && !S.tracks.length) {
+      // экран приветствия почему-то не показался, а слушать всё равно нечего.
+      // не бросаем человека на пустом плеере - отправляем туда, где есть кнопки
+      go('settings');
+      toast('Добавь папку с музыкой или поставь yt-dlp, чтобы качать');
+    }
   }
 })();

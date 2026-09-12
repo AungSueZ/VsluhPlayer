@@ -328,6 +328,51 @@ a:hover{text-decoration:underline}
 .lay-btn{right:58px}
 .stu-btn{right:102px}
 
+/* ===== первый запуск ===== */
+.hello{
+  position:fixed;inset:0;z-index:80;
+  display:grid;place-items:center;padding:28px;
+  background:rgba(6,5,9,.94);backdrop-filter:blur(14px);
+  animation:selIn .25s var(--ease);
+}
+.hello-in{width:min(720px,100%);text-align:center}
+.hello-mark{font-size:26px;color:rgb(var(--ac));text-shadow:0 0 26px rgba(var(--ac),.7)}
+.hello-name{
+  font-family:var(--font-ly);
+  font-size:38px;font-weight:700;letter-spacing:-.8px;margin-top:12px;
+}
+.hello-lead{
+  margin:14px auto 0;max-width:52ch;font-size:15px;line-height:1.6;color:var(--dim);
+}
+
+.hello-pick{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap;justify-content:center}
+.hello-card{
+  flex:1 1 260px;min-width:0;max-width:330px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:9px;
+  padding:22px 22px 20px;text-align:left;
+  background:var(--glass);border:1px solid var(--line);border-radius:14px;
+  transition:.18s var(--ease);
+}
+.hello-card:hover{
+  background:rgba(var(--ac),.1);border-color:rgba(var(--ac),.45);
+  transform:translateY(-2px);
+}
+.hello-card[disabled]{opacity:.45;cursor:default;transform:none}
+.hello-ic{
+  width:34px;height:34px;padding:7px;border-radius:10px;
+  background:rgba(var(--ac),.16);color:rgb(var(--ac));
+}
+.hello-card b{font-size:15px;font-weight:600}
+.hello-card small{font-size:12.5px;line-height:1.5;color:var(--dim)}
+
+.hello-state{margin-top:20px;min-height:18px;font-size:12.5px;color:var(--dim2)}
+.hello-state.bad{color:#ff8f8f}
+.hello-skip{
+  margin-top:8px;padding:8px 14px;border-radius:8px;
+  font-size:12.5px;color:var(--dim2);transition:.15s;
+}
+.hello-skip:hover{color:var(--ink);background:var(--glass2)}
+
 /* ===== студия ===== */
 .studio{
   position:fixed;inset:0;z-index:70;

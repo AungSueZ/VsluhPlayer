@@ -659,6 +659,39 @@
   <div class="dlq-body" id="dlq-body"></div>
 </div>
 
+<!-- первый запуск: сразу спрашиваем главное - откуда брать музыку -->
+<div class="hello" id="hello" hidden>
+  <div class="hello-in">
+    <div class="hello-mark">◈</div>
+    <h1 class="hello-name">Вслух</h1>
+    <p class="hello-lead">
+      Плеер с караоке: строка подсвечивается ровно по мере того, как её поют.
+      Начнём с главного — откуда берём музыку?
+    </p>
+
+    <div class="hello-pick">
+      <button class="hello-card" id="hello-local">
+        <span class="hello-ic">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3z"/></svg>
+        </span>
+        <b>Она есть на компьютере</b>
+        <small>Покажи папку — прочитаю теги, длительность и обложки</small>
+      </button>
+
+      <button class="hello-card" id="hello-net">
+        <span class="hello-ic">
+          <svg viewBox="0 0 24 24"><path d="M12 3v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V3zM4 19h16v2H4z"/></svg>
+        </span>
+        <b>Музыки нет</b>
+        <small>Поставлю yt-dlp, и можно искать и качать прямо отсюда</small>
+      </button>
+    </div>
+
+    <div class="hello-state" id="hello-state"></div>
+    <button class="hello-skip" id="hello-skip">Разберусь сам</button>
+  </div>
+</div>
+
 <!-- студия: карточка картинкой и клип видеофайлом -->
 <div class="studio" id="studio" hidden>
   <div class="studio-in">
