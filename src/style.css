@@ -599,6 +599,20 @@ a:hover{text-decoration:underline}
   border:1px solid color-mix(in srgb,var(--pf-title-c,rgb(var(--ac))) 40%,transparent);
 }
 .pf-tag{font-size:13.5px;color:var(--dim);margin-top:2px}
+/* иконки соц-сетей под ником */
+.pf-soc{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+.soc{
+  width:28px;height:28px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:9px;border:1px solid var(--line);
+  background:var(--glass);
+  color:var(--dim);
+  transition:.15s var(--ease);
+}
+.soc svg{width:16px;height:16px}
+.soc:hover{color:rgb(var(--ac));border-color:rgba(var(--ac),.45);background:var(--glass2);transform:translateY(-1px)}
+.soc:focus-visible{outline:2px solid rgba(var(--ac),.6);outline-offset:2px}
+
 .pf-status{font-size:13px;color:var(--dim2);margin-top:5px;font-style:italic}
 .pf-about{
   margin:0;padding:0 22px 20px;font-size:13.5px;line-height:1.6;

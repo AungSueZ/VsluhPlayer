@@ -2750,6 +2750,7 @@ function renderProfile() {
   $('pf-title').hidden = !ttl;
   $('pf-title').style.setProperty('--pf-title-c', p.titleColor || '');
 
+  renderSoc();
   renderProfStats();
   renderTitles();
 }
@@ -2817,6 +2818,95 @@ function renderTitles() {
 
 let repaintProfPal = null;
 
+/* ---- соц-сети ----
+   храним короткое имя, а не ссылку целиком: адрес собирается здесь из
+   заранее известного домена. вставит человек что угодно - уйдёт он всё равно
+   только на нужный сайт */
+const SOC = [
+  { id: 'vk', name: 'ВКонтакте',
+    url: h => 'https://vk.com/' + h,
+    from: /(?:vk\.com|vk\.ru)\/([A-Za-z0-9._]+)/i,
+    ok: /^[A-Za-z0-9._]{2,40}$/,
+    icon: 'M13.2 17.5c-5.5 0-8.9-3.8-9-10h2.8c.1 4.6 2.2 6.5 3.7 6.9V7.5h2.6v4c1.6-.2 3.2-2 3.7-4h2.6c-.4 2.4-2.2 4.2-3.5 5 1.3.6 3.3 2.2 4.1 5h-2.9c-.6-1.9-2.1-3.4-4-3.6v3.6z' },
+
+  { id: 'tg', name: 'Telegram',
+    url: h => 'https://t.me/' + h,
+    from: /t\.me\/([A-Za-z0-9_]+)/i,
+    ok: /^[A-Za-z0-9_]{4,40}$/,
+    icon: 'M9.8 15.6 9.5 20c.5 0 .7-.2 1-.5l2.4-2.3 5 3.6c.9.5 1.6.2 1.8-.9l3.3-15.4c.3-1.3-.5-1.9-1.4-1.6L1.3 9.6c-1.3.5-1.3 1.2-.2 1.5l5 1.6L17.8 5.9c.5-.3 1-.2.6.2z' },
+
+  { id: 'ds', name: 'Discord',
+    // у профиля Discord нет общедоступного адреса, а имя пользователя и код
+    // приглашения на вид неразличимы. поэтому открываем только то, что человек
+    // сам вставил ссылкой: имя, набранное руками, ведёт не на страницу, а в буфер
+    url: () => '',
+    from: /discord\.gg\/([A-Za-z0-9]+)/i,
+    invite: /discord\.gg\/([A-Za-z0-9]{4,20})/i,
+    ok: /^[A-Za-z0-9._#]{2,40}$/,
+    icon: 'M19.3 5.3A16 16 0 0 0 15.4 4l-.2.4c1.3.3 2.5.8 3.6 1.5a13.5 13.5 0 0 0-11.6 0c1.1-.7 2.3-1.2 3.6-1.5L10.6 4a16 16 0 0 0-3.9 1.3C4.2 9 3.5 12.6 3.9 16.2a16 16 0 0 0 4.8 2.4l.9-1.5c-.8-.3-1.6-.7-2.2-1.2l.5-.4a11.4 11.4 0 0 0 9.8 0l.5.4c-.7.5-1.4.9-2.2 1.2l.9 1.5a16 16 0 0 0 4.8-2.4c.5-4.2-.6-7.8-2.4-10.9M9.7 14c-.9 0-1.7-.9-1.7-1.9s.8-1.9 1.7-1.9 1.7.9 1.7 1.9-.8 1.9-1.7 1.9m4.6 0c-.9 0-1.7-.9-1.7-1.9s.8-1.9 1.7-1.9 1.7.9 1.7 1.9-.8 1.9-1.7 1.9' },
+
+  { id: 'sp', name: 'Spotify',
+    url: h => 'https://open.spotify.com/user/' + h,
+    from: /open\.spotify\.com\/user\/([A-Za-z0-9]+)/i,
+    ok: /^[A-Za-z0-9]{2,40}$/,
+    icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m4.6 14.4c-.2.3-.6.4-.9.2-2.5-1.5-5.6-1.8-9.3-1-.4.1-.7-.1-.8-.5s.1-.7.5-.8c4-.9 7.5-.5 10.3 1.2.3.2.4.6.2.9m1.2-2.8c-.2.4-.7.5-1.1.3-2.8-1.7-7.1-2.2-10.4-1.2-.4.1-.9-.1-1-.6s.1-.9.6-1c3.8-1.1 8.5-.6 11.7 1.4.4.2.5.7.2 1.1m.1-2.9C14.5 8.7 8.9 8.5 5.7 9.5c-.5.2-1.1-.1-1.3-.7s.1-1.1.7-1.3c3.7-1.1 9.9-.9 13.8 1.4.5.3.7 1 .4 1.5-.3.4-1 .6-1.4.3' },
+
+  { id: 'gh', name: 'GitHub',
+    url: h => 'https://github.com/' + h,
+    from: /github\.com\/([A-Za-z0-9-]+)/i,
+    ok: /^[A-Za-z0-9-]{1,39}$/,
+    icon: 'M12 2A10 10 0 0 0 8.8 21.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2' }
+];
+
+const socLinks = () => (prof().links = prof().links || {});
+
+// вставили целую ссылку - вынимаем из неё короткое имя, иначе берём как есть
+function socClean(sc, v) {
+  const t = String(v || '').trim().replace(/^@/, '');
+  if (!t) return '';
+  const m = sc.from.exec(t);
+  if (m) return m[1];
+  if (/[/\s]/.test(t)) return '';          // чужая ссылка - не наше дело
+  return sc.ok.test(t) ? t : '';
+}
+
+// что показать и куда вести. пустой адрес значит "открывать нечего, копируем"
+function socResolve(sc, v) {
+  const h = socClean(sc, v);
+  if (!h) return null;
+  if (sc.invite) {
+    const inv = sc.invite.exec(String(v || ''));
+    return { h, url: inv ? 'https://discord.gg/' + inv[1] : '' };
+  }
+  return { h, url: sc.url(h) };
+}
+
+function renderSoc() {
+  const box = $('pf-soc');
+  if (!box) return;
+  const L = socLinks();
+  box.textContent = '';
+
+  let n = 0;
+  for (const sc of SOC) {
+    const r = socResolve(sc, L[sc.id]);
+    if (!r) continue;
+    const h = r.h, url = r.url;
+    n++;
+    const b = el('button', 'soc');
+    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + sc.icon + '"/></svg>';
+    b.title = sc.name + ': ' + h + (url ? '' : ' — ' + T('нажми, чтобы скопировать'));
+    b.onclick = () => {
+      if (url) { window.api.openExternal(url); return; }
+      // у Discord открывать нечего - кладём имя в буфер
+      try { navigator.clipboard.writeText(h); toast(T('Скопировано: ') + h); }
+      catch { toast(h); }
+    };
+    box.appendChild(b);
+  }
+  box.hidden = !n;
+}
+
 function wireProfile() {
   renderProfile();
 
@@ -2833,6 +2923,16 @@ function wireProfile() {
   bind('pf-in-avatar', 'avatar');
   bind('pf-in-banner', 'banner');
   bind('pf-in-bg', 'bg');
+
+  for (const sc of SOC) {
+    const inp = $('pf-in-' + sc.id);
+    if (!inp) continue;
+    inp.value = socLinks()[sc.id] || '';
+    inp.oninput = () => {
+      socLinks()[sc.id] = inp.value.slice(0, 120);
+      setProf({ links: socLinks() });
+    };
+  }
 
   // свой титул главнее готового: написал руками - отметка с кнопок снимается
   const own = $('pf-title-own');
