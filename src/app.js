@@ -2048,6 +2048,8 @@ function renderPrivacy() {
       S.cfg.dlCookies ? 'on' : 'off'],
     ['Discord', 'название и артист играющего трека',
       (d.on && d.clientId) ? 'on' : 'off'],
+    ['Проверка обновлений', 'номер твоей версии — чтобы узнать, вышла ли новее',
+      (S.cfg.updates || {}).on !== false ? 'on' : 'off'],
     ['Чужие плееры', 'читается механизмом Windows, наружу не уходит',
       (S.cfg.smtc || {}).on !== false ? 'local' : 'off']
   ];
@@ -2087,6 +2089,53 @@ async function loadDlStatus() {
   renderPrivacy();
   // yt-dlp нашёлся уже после отрисовки результатов - показываем кнопки скачивания
   if (sqResults.length) renderSearch();
+}
+
+/* ---------- обновления ---------- */
+
+const UPD = { state: 'idle', version: '', next: '', percent: 0, error: '' };
+
+function paintUpd() {
+  const t = $('upd-text'), b = $('upd-act');
+  if (!t || !b) return;
+
+  const v = UPD.version ? 'версия ' + UPD.version : '';
+  const texts = {
+    dev:         v + ' — запущено из исходников, обновлять нечего',
+    idle:        v,
+    checking:    v + ' — проверяю…',
+    none:        v + ' — это последняя',
+    found:       'вышла версия ' + UPD.next + ', у тебя ' + UPD.version,
+    downloading: 'качаю ' + UPD.next + ' — ' + UPD.percent + '%',
+    ready:       'версия ' + UPD.next + ' скачана, осталось перезапустить',
+    error:       'не проверилось: ' + UPD.error
+  };
+  t.textContent = texts[UPD.state] || v;
+
+  const labels = {
+    checking: 'Проверяю…',
+    found: 'Скачать',
+    downloading: UPD.percent + '%',
+    ready: 'Перезапустить'
+  };
+  b.textContent = labels[UPD.state] || 'Проверить';
+  b.disabled = UPD.state === 'checking' || UPD.state === 'downloading';
+  b.hidden = UPD.state === 'dev';
+  t.parentElement.style.opacity = UPD.state === 'found' || UPD.state === 'ready' ? '1' : '.6';
+}
+
+function wireUpdates() {
+  window.api.upd.onState(s => { Object.assign(UPD, s || {}); paintUpd(); });
+
+  $('upd-act').onclick = () => {
+    if (UPD.state === 'found') { window.api.upd.download(); UPD.state = 'downloading'; UPD.percent = 0; paintUpd(); return; }
+    if (UPD.state === 'ready') { toast('Перезапускаюсь…'); window.api.upd.install(); return; }
+    window.api.upd.check();
+    UPD.state = 'checking';
+    paintUpd();
+  };
+
+  window.api.upd.state().then(s => { Object.assign(UPD, s || {}); paintUpd(); }).catch(() => {});
 }
 
 /* ---------- бэкап библиотеки ---------- */
@@ -2574,6 +2623,14 @@ function wireSettings() {
   bindSwitch('s-mk', () => S.cfg.hotkeys.mediaKeys, v => {
     S.cfg.hotkeys.mediaKeys = v; window.api.settings.set({ hotkeys: { mediaKeys: v } });
   });
+  wireUpdates();
+  bindSwitch('s-upd', () => S.cfg.updates?.on !== false, v => {
+    S.cfg.updates = S.cfg.updates || {};
+    S.cfg.updates.on = v;
+    window.api.settings.set({ updates: { on: v } });
+    renderPrivacy();
+  });
+
   bindSwitch('s-smtc', () => S.cfg.smtc.on, v => {
     S.cfg.smtc.on = v; window.api.settings.set({ smtc: { on: v } });
   });

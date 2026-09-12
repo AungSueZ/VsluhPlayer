@@ -55,6 +55,14 @@ contextBridge.exposeInMainWorld('api', {
     save:      p         => ipcRenderer.invoke('studio:save', p)
   },
 
+  upd: {
+    state:     ()        => ipcRenderer.invoke('upd:state'),
+    check:     ()        => ipcRenderer.invoke('upd:check'),
+    download:  ()        => ipcRenderer.invoke('upd:download'),
+    install:   ()        => ipcRenderer.invoke('upd:install'),
+    onState:   fn        => on('upd:state', fn)
+  },
+
   backup: {
     save:      ()        => ipcRenderer.invoke('backup:export'),
     load:      ()        => ipcRenderer.invoke('backup:import'),

@@ -14,6 +14,7 @@ const catalog = require('./lib/search');
 const ytdlp = require('./lib/ytdlp');
 const { DlQueue } = require('./lib/dlqueue');
 const backup = require('./lib/backup');
+const { autoUpdater } = require('electron-updater');
 
 const DEV = process.argv.includes('--dev');
 
@@ -498,6 +499,24 @@ function wireIpc() {
     }
   });
 
+  /* ---- обновления ---- */
+
+  ipcMain.handle('upd:state', () => updState);
+
+  ipcMain.handle('upd:check', async () => {
+    if (!app.isPackaged) return { state: 'dev' };
+    try { await autoUpdater.checkForUpdates(); } catch (e) { setUpd({ state: 'error', error: updError(e) }); }
+    return updState;
+  });
+
+  ipcMain.handle('upd:download', async () => {
+    try { await autoUpdater.downloadUpdate(); } catch (e) { setUpd({ state: 'error', error: updError(e) }); }
+    return updState;
+  });
+
+  // ставим и перезапускаемся; до этого момента ничего не подменяется
+  ipcMain.handle('upd:install', () => { setImmediate(() => autoUpdater.quitAndInstall(false, true)); return true; });
+
   ipcMain.handle('dl:install', async () => {
     if (dlq.state().busy) return { error: 'сейчас идёт скачивание — дождись конца очереди' };
     try {
@@ -637,6 +656,53 @@ function wireIpc() {
   ipcMain.on('open:external', (e, url) => { if (/^https?:/.test(url)) shell.openExternal(url); });
 }
 
+/* ---------- обновления ---------- */
+
+let updState = { state: 'idle', version: app.getVersion(), percent: 0, error: '' };
+
+// electron-updater ругается ссылками и стектрейсами - оставляем суть
+const UPD_HINTS = [
+  [/cannot find latest\.yml|latest\.yml.*404/i, 'в последнем релизе нет файла с описанием версии'],
+  [/ENOTFOUND|getaddrinfo|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ETIMEDOUT/i, 'нет связи с GitHub'],
+  [/rate limit/i, 'GitHub просит подождать — слишком много проверок подряд'],
+  [/404/i, 'релиз не найден'],
+  [/EPERM|EACCES|EBUSY/i, 'не хватает прав заменить файлы — запусти от администратора'],
+  [/ENOSPC|no space/i, 'на диске нет места']
+];
+
+function updError(raw) {
+  const text = String((raw && (raw.message || raw)) || '');
+  for (const [re, msg] of UPD_HINTS) if (re.test(text)) return msg;
+  const line = text.split('\n')[0].trim() || 'не получилось';
+  return line.length > 110 ? line.slice(0, 110) + '…' : line;
+}
+
+function setUpd(patch) {
+  updState = Object.assign({}, updState, patch);
+  send('upd:state', updState);
+}
+
+function wireUpdates() {
+  // из исходников обновлять нечего, да и нечем - обновляется установленная сборка
+  if (!app.isPackaged) { setUpd({ state: 'dev' }); return; }
+
+  autoUpdater.autoDownload = false;          // спрашиваем, а не тянем молча
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = null;
+
+  autoUpdater.on('checking-for-update', () => setUpd({ state: 'checking', error: '' }));
+  autoUpdater.on('update-available', i => setUpd({ state: 'found', next: i.version }));
+  autoUpdater.on('update-not-available', () => setUpd({ state: 'none' }));
+  autoUpdater.on('download-progress', p => setUpd({ state: 'downloading', percent: Math.round(p.percent || 0) }));
+  autoUpdater.on('update-downloaded', i => setUpd({ state: 'ready', next: i.version, percent: 100 }));
+  autoUpdater.on('error', e => setUpd({ state: 'error', error: updError(e) }));
+
+  if (store.all.updates?.on !== false) {
+    // не на самом старте: пусть окно сначала появится
+    setTimeout(() => { autoUpdater.checkForUpdates().catch(() => {}); }, 9000);
+  }
+}
+
 /* ---------- переезд со старого имени ---------- */
 
 // приложение раньше звалось Aung Player и хранило всё в %APPDATA%\aung-player.
@@ -711,6 +777,7 @@ app.whenReady().then(async () => {
   registerHotkeys();
   step('горячие клавиши');
   setTimeout(startArtwork, 3000);
+  try { wireUpdates(); } catch (e) { fatal('обновления', e, false); }
   applyDiscord();
   step('запуск завершён');
 
