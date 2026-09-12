@@ -682,6 +682,24 @@ function setUpd(patch) {
   send('upd:state', updState);
 }
 
+// electron-updater складывает скачанный установщик в %LOCALAPPDATA%\vsluh-updater
+// и после установки его там оставляет - сотня-другая мегабайт впустую.
+// чистим только когда сервер ответил "у тебя последняя": значит, ждать нечего
+function dropUpdCache() {
+  try {
+    const base = process.env.LOCALAPPDATA;
+    if (!base) return;
+    const dir = path.join(base, app.getName().toLowerCase() + '-updater');
+    if (!fs.existsSync(dir)) return;
+    let size = 0;
+    for (const f of fs.readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (f.isFile()) { try { size += fs.statSync(path.join(f.parentPath || f.path, f.name)).size; } catch {} }
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (size) step('кэш обновлений очищен: ' + Math.round(size / 1048576) + ' МБ');
+  } catch { /* занят или уже удалён - не беда, вычистим в следующий раз */ }
+}
+
 function wireUpdates() {
   // из исходников обновлять нечего, да и нечем - обновляется установленная сборка
   if (!app.isPackaged) { setUpd({ state: 'dev' }); return; }
@@ -692,7 +710,7 @@ function wireUpdates() {
 
   autoUpdater.on('checking-for-update', () => setUpd({ state: 'checking', error: '' }));
   autoUpdater.on('update-available', i => setUpd({ state: 'found', next: i.version }));
-  autoUpdater.on('update-not-available', () => setUpd({ state: 'none' }));
+  autoUpdater.on('update-not-available', () => { setUpd({ state: 'none' }); dropUpdCache(); });
   autoUpdater.on('download-progress', p => setUpd({ state: 'downloading', percent: Math.round(p.percent || 0) }));
   autoUpdater.on('update-downloaded', i => setUpd({ state: 'ready', next: i.version, percent: 100 }));
   autoUpdater.on('error', e => setUpd({ state: 'error', error: updError(e) }));
