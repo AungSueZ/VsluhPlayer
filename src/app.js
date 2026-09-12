@@ -204,6 +204,7 @@ function play(track, fromQueue) {
   loadLyrics(track);
   renderRows();
   renderQueue();
+  if ((S.cfg.theme || {}).vizAuto === 'track') nextViz('track');
   window.api.settings.set({ lastTrack: track.id });
 }
 
@@ -1681,6 +1682,72 @@ const PRESETS = [
     }
   },
   {
+    id: 'glow', name: 'Сияние', hint: 'занавесы северного сияния во весь экран',
+    sw: ['#7cf3d0', '#1b3a4a', '#06101a'],
+    cfg: {
+      accent: true, particles: true,
+      lyricsTheme: 'karaoke', lyricsSize: 'lg', lyricsGlow: true, lyricsBlur: true,
+      theme: { fontUi: 'inter', fontLy: 'unbounded', viz: 'aurora', vizPower: 110,
+               vizSpeed: 80, vizAlpha: 85, disc: 'vinyl', spin: true, beat: true,
+               bg: 'cover', bgBlur: 104, bgDim: 58 }
+    }
+  },
+  {
+    id: 'orbit', name: 'Орбита', hint: 'шар из точек крутится вокруг обложки',
+    sw: ['#8fb8ff', '#1d2740', '#070a12'],
+    cfg: {
+      accent: true, particles: false,
+      lyricsTheme: 'karaoke', lyricsSize: 'md', lyricsGlow: true, lyricsBlur: true,
+      theme: { fontUi: 'manrope', fontLy: 'manrope', viz: 'sphere', vizPower: 110,
+               vizSpeed: 100, vizAlpha: 100, disc: 'plain', spin: false, beat: true,
+               bg: 'cover', bgBlur: 96, bgDim: 54 }
+    }
+  },
+  {
+    id: 'mandala', name: 'Мандала', hint: 'симметричный узор собирается из спектра',
+    sw: ['#ff7ae0', '#3a1440', '#0d0512'],
+    cfg: {
+      accent: true, particles: false,
+      lyricsTheme: 'focus', lyricsSize: 'md', lyricsGlow: true, lyricsBlur: true,
+      theme: { fontUi: 'golos', fontLy: 'golos', viz: 'kaleid', vizPower: 100,
+               vizSpeed: 70, vizAlpha: 80, disc: 'vinyl', spin: true, beat: true,
+               bg: 'cover', bgBlur: 110, bgDim: 62 }
+    }
+  },
+  {
+    id: 'storm', name: 'Гроза', hint: 'дождь из спектра и мокрый пол',
+    sw: ['#9fd8ff', '#16222e', '#050a0f'],
+    cfg: {
+      accent: true, particles: false,
+      lyricsTheme: 'soft', lyricsSize: 'md', lyricsGlow: false, lyricsBlur: true,
+      theme: { fontUi: 'inter', fontLy: 'inter', viz: 'rain', vizPower: 105,
+               vizSpeed: 100, vizAlpha: 90, disc: 'square', spin: false, beat: false,
+               bg: 'cover', bgBlur: 118, bgDim: 66 }
+    }
+  },
+  {
+    id: 'nova', name: 'Сверхновая', hint: 'длинные лучи и вспышка на каждую долю',
+    sw: ['#ffb457', '#3a1c10', '#0d0603'],
+    cfg: {
+      accent: true, particles: true,
+      lyricsTheme: 'focus', lyricsSize: 'lg', lyricsGlow: true, lyricsBlur: true,
+      theme: { fontUi: 'oswald', fontLy: 'oswald', viz: 'pulsar', vizPower: 125,
+               vizSpeed: 110, vizAlpha: 95, disc: 'plain', spin: false, beat: true,
+               bg: 'cover', bgBlur: 88, bgDim: 50 }
+    }
+  },
+  {
+    id: 'silk', name: 'Шёлк', hint: 'лента вьётся и перекручивается под текстом',
+    sw: ['#e0a9ff', '#2b1b3d', '#0a0611'],
+    cfg: {
+      accent: true, particles: false,
+      lyricsTheme: 'feed', lyricsSize: 'md', lyricsGlow: false, lyricsBlur: true,
+      theme: { fontUi: 'golos', fontLy: 'playfair', viz: 'ribbon', vizPower: 100,
+               vizSpeed: 85, vizAlpha: 100, disc: 'vinyl', spin: true, beat: true,
+               bg: 'cover', bgBlur: 100, bgDim: 56 }
+    }
+  },
+  {
     id: 'clean', name: 'Чисто', hint: 'ничего лишнего, текст лентой',
     sw: ['#e8e6ef', '#26242c', '#0a0a0c'],
     cfg: {
@@ -1883,6 +1950,11 @@ function nextVideo() {
 function applyPreset(p) {
   const patch = JSON.parse(JSON.stringify(p.cfg));
   patch.theme.preset = p.id;
+  patch.theme.profile = '';
+  // старые темы про эти настройки не знают - иначе скорость и насыщенность
+  // от прошлой темы прилипли бы к новой и она выглядела бы не так, как обещано
+  if (patch.theme.vizSpeed === undefined) patch.theme.vizSpeed = 100;
+  if (patch.theme.vizAlpha === undefined) patch.theme.vizAlpha = 100;
   // в память кладём то же, что уходит на диск
   S.cfg = Object.assign({}, S.cfg, patch, { theme: Object.assign({}, S.cfg.theme, patch.theme) });
   window.api.settings.set(patch);
@@ -1907,12 +1979,163 @@ function renderPresets() {
   }
 }
 
-// после ручной правки пресет уже не тот - снимаем отметку
+// после ручной правки ни готовая тема, ни профиль уже не те - снимаем отметки
 function offPreset() {
   if (!S.cfg.theme) S.cfg.theme = {};
   S.cfg.theme.preset = 'custom';
-  window.api.settings.set({ theme: { preset: 'custom' } });
+  S.cfg.theme.profile = '';
+  window.api.settings.set({ theme: { preset: 'custom', profile: '' } });
   renderPresets();
+  renderProfiles();
+}
+
+/* ---- свои профили оформления ---- */
+
+// всё, что делает внешний вид внешним видом. папки, громкость и горячие
+// клавиши сюда не попадают: профиль про оформление, а не про всё подряд
+const LOOK_KEYS = ['accent', 'particles', 'lyricsTheme', 'lyricsSize', 'lyricsGlow', 'lyricsBlur'];
+const LOOK_THEME = ['fontUi', 'fontLy', 'accentColor', 'viz', 'vizPower', 'vizSpeed',
+                    'vizAlpha', 'vizAuto', 'layout', 'disc', 'spin', 'beat',
+                    'bg', 'bgUrl', 'bgBlur', 'bgDim'];
+
+function currentLook() {
+  const t = S.cfg.theme || {};
+  const out = { theme: {} };
+  for (const k of LOOK_KEYS) out[k] = S.cfg[k];
+  for (const k of LOOK_THEME) out.theme[k] = t[k];
+  return out;
+}
+
+function profiles() {
+  if (!Array.isArray(S.cfg.profiles)) S.cfg.profiles = [];
+  return S.cfg.profiles;
+}
+
+function saveProfiles() {
+  window.api.settings.set({ profiles: profiles() });
+}
+
+function addProfile(name) {
+  const n = (name || '').trim().slice(0, 40) || 'Без имени';
+  const p = { id: 'p' + Date.now().toString(36), name: n, at: Date.now(), cfg: currentLook() };
+  profiles().push(p);
+  S.cfg.theme = S.cfg.theme || {};
+  S.cfg.theme.profile = p.id;
+  saveProfiles();
+  window.api.settings.set({ theme: { profile: p.id } });
+  renderProfiles();
+  toast('Профиль «' + n + '» сохранён');
+}
+
+function applyProfile(p) {
+  const patch = JSON.parse(JSON.stringify(p.cfg));
+  patch.theme.preset = 'custom';
+  patch.theme.profile = p.id;
+
+  S.cfg = Object.assign({}, S.cfg, patch,
+    { theme: Object.assign({}, S.cfg.theme, patch.theme) });
+  window.api.settings.set(patch);
+
+  applyTheme();
+  applyLyStyle();
+  if (typeof repaintTheme === 'function') repaintTheme();
+  // раскладка могла смениться - колонка другой ширины, строки надо подвести заново
+  requestAnimationFrame(() => { sizeViz(); centerLyrics(LY.cur, true); });
+  setTimeout(() => { sizeViz(); centerLyrics(LY.cur, true); }, 280);
+  toast('Профиль: ' + p.name);
+}
+
+function dropProfile(p) {
+  const list = profiles();
+  const i = list.indexOf(p);
+  if (i < 0) return;
+  list.splice(i, 1);
+  if ((S.cfg.theme || {}).profile === p.id) {
+    S.cfg.theme.profile = '';
+    window.api.settings.set({ theme: { profile: '' } });
+  }
+  saveProfiles();
+  renderProfiles();
+}
+
+// кружок профиля: свой цвет, если задан, иначе тот, что сейчас подобран под обложку
+function profColor(p) {
+  const c = ((p.cfg || {}).theme || {}).accentColor;
+  if (c) return c;
+  return 'rgb(' + (getComputedStyle(document.documentElement)
+    .getPropertyValue('--ac').trim() || '150,140,255') + ')';
+}
+
+function renderProfiles() {
+  const box = $('profiles');
+  if (!box) return;
+  box.textContent = '';
+  const cur = (S.cfg.theme || {}).profile || '';
+
+  for (const p of profiles()) {
+    const chip = el('div', 'prof' + (cur === p.id ? ' on' : ''));
+
+    const sw = el('div', 'prof-sw');
+    sw.style.background = profColor(p);
+
+    const n = el('button', 'prof-n');
+    n.textContent = p.name;
+    n.title = 'применить';
+    n.onclick = () => applyProfile(p);
+
+    const ren = el('button', 'prof-x');
+    ren.textContent = '✎';
+    ren.title = 'переименовать';
+    ren.onclick = () => nameInput(chip, p.name, v => {
+      const nn = (v || '').trim().slice(0, 40);
+      if (nn) { p.name = nn; saveProfiles(); }
+      renderProfiles();
+    });
+
+    const x = el('button', 'prof-x');
+    x.textContent = '✕';
+    x.title = 'удалить профиль';
+    x.onclick = () => dropProfile(p);
+
+    chip.append(sw, n, ren, x);
+    box.appendChild(chip);
+  }
+
+  if (!profiles().length) {
+    const e = el('span', 'prof-empty');
+    e.textContent = 'пока ни одного — настрой вид и сохрани';
+    box.appendChild(e);
+  }
+
+  const add = el('button', 'prof-add');
+  add.textContent = '+ сохранить текущее';
+  add.onclick = () => nameInput(add, '', v => {
+    if ((v || '').trim()) addProfile(v); else renderProfiles();
+  });
+  box.appendChild(add);
+}
+
+// тот же приём, что и с плейлистами: prompt() в electron не работает
+function nameInput(node, value, done) {
+  const inp = el('input', 'prof-inp');
+  inp.value = value || '';
+  inp.placeholder = 'название профиля';
+  node.replaceWith(inp);
+  inp.focus();
+  inp.select();
+
+  let closed = false;
+  const fin = ok => {
+    if (closed) return;
+    closed = true;
+    if (ok) done(inp.value); else renderProfiles();
+  };
+  inp.onkeydown = e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') fin(true);
+    else if (e.key === 'Escape') fin(false);
+  };
+  inp.onblur = () => fin(false);
 }
 
 function paintThemeControls() {
@@ -2484,6 +2707,7 @@ let repaintTheme = null;
 
 function wireThemes() {
   renderPresets();
+  renderProfiles();
 
   const th = () => (S.cfg.theme = S.cfg.theme || {});
   // правка руками сбивает отметку с готовой темы - это уже своя
@@ -2506,8 +2730,15 @@ function wireThemes() {
   const pDisc = bindPick('p-disc', () => th().disc || 'vinyl', v => setTheme({ disc: v }));
   const pBg   = bindPick('p-bg',   () => th().bg   || 'cover', v => { setTheme({ bg: v }); paintVid(); });
 
+  const pAuto = bindPick('p-vizauto', () => String(th().vizAuto || 'off'),
+                         v => setTheme({ vizAuto: v }));
+
   const rPow  = bindRange('r-vizpower', () => th().vizPower ?? 100,
                           v => setTheme({ vizPower: v }), v => v + '%');
+  const rSpd  = bindRange('r-vizspeed', () => th().vizSpeed ?? 100,
+                          v => setTheme({ vizSpeed: v }), v => v + '%');
+  const rAl   = bindRange('r-vizalpha', () => th().vizAlpha ?? 100,
+                          v => setTheme({ vizAlpha: v }), v => v + '%');
   const rBlur = bindRange('r-blur', () => th().bgBlur ?? 80,
                           v => setTheme({ bgBlur: v }), v => v + ' px');
   const rDim  = bindRange('r-dim',  () => th().bgDim ?? 42,
@@ -2588,9 +2819,10 @@ function wireThemes() {
 
   repaintTheme = () => {
     fUi(); fLy(); paintPal();
-    pLay(); pViz(); pDisc(); pBg(); rPow(); rBlur(); rDim();
+    pLay(); pViz(); pDisc(); pBg(); pAuto();
+    rPow(); rSpd(); rAl(); rBlur(); rDim();
     swSpin(); swBeat(); swPx(); swAc();
-    paintVid(); renderPresets();
+    paintVid(); renderPresets(); renderProfiles();
   };
 }
 
@@ -3024,6 +3256,10 @@ const dust = [];
 
 // приход доли: считается один раз за кадр, пользуются несколько визуализаций
 let bassAvg = 0, lastBeat = 0, lastRing = 0, beatNow = false, vizT = 0;
+
+// vizT - настоящее время, по нему ловим доли и его нельзя растягивать.
+// vizClock - часы самой анимации: их и замедляет ползунок "скорость"
+let vizClock = 0, vizDt = 16.7, vizSpd = 1, vizA = 1, lastFrameAt = 0;
 const rings = [];
 let fallC = null, fallX = null;
 const stars = [];
@@ -3062,8 +3298,27 @@ function drawViz() {
   const ac = accentRgb();
   const p = Math.max(0.3, (th.vizPower ?? 100) / 100);
 
+  // часы анимации: реальное время, растянутое ползунком скорости
+  vizDt = lastFrameAt ? Math.min(50, vizT - lastFrameAt) : 16.7;
+  lastFrameAt = vizT;
+  vizSpd = Math.max(0.3, (th.vizSpeed ?? 100) / 100);
+  vizClock += vizDt * vizSpd;
+  vizAutoTick();
+
   vizX.clearRect(0, 0, vw, vh);
-  switch (th.viz || 'ring') {
+  vizA = Math.min(1, Math.max(0.15, (th.vizAlpha ?? 100) / 100));
+  vizX.globalAlpha = vizA;
+
+  const kind = th.viz || 'ring';
+  const big = window.VIZ2 && window.VIZ2[kind];
+  if (big) {
+    big({
+      x: vizX, w: vw, h: vh, geo: geo,
+      freq: freq, time: timeData, live: live,
+      beat: beatSm, hit: beatNow,
+      t: vizClock, dt: vizDt * vizSpd, p: p, ac: ac
+    });
+  } else switch (kind) {
     case 'ring':   vizRing(ac, live, p);   break;
     case 'radial': vizRadial(ac, live, p); break;
     case 'wave':   vizWave(ac, live, p);   break;
@@ -3077,7 +3332,48 @@ function drawViz() {
     case 'warp':   vizWarp(ac, live, p);   break;
     case 'grid':   vizGrid(ac, live, p);   break;
   }
+
+  // холст общий с мини-эквалайзером - прозрачность за собой убираем
+  vizX.globalAlpha = 1;
   drawMini(live, ac);
+}
+
+/* ---- сама меняет вид ---- */
+
+// "выключить" в переборе не участвует: незачем самим себя гасить
+const VIZ_CYCLE = [
+  'ring', 'radial', 'tunnel', 'spiral', 'bloom', 'sphere', 'kaleid', 'pulsar',
+  'wave', 'bars', 'mirror', 'fall', 'aurora', 'ribbon',
+  'dust', 'warp', 'grid', 'rain'
+];
+let vizAutoAt = 0;
+
+function nextViz(why) {
+  const th = S.cfg.theme || (S.cfg.theme = {});
+  const cur = th.viz || 'ring';
+  let list = VIZ_CYCLE.filter(v => v !== cur);
+  if (!list.length) return;
+  const v = list[(Math.random() * list.length) | 0];
+  th.viz = v;
+  window.api.settings.set({ theme: { viz: v } });
+  // это не ручная правка, отметку с готовой темы не снимаем
+  if (typeof repaintTheme === 'function') repaintTheme();
+  if (why === 'timer') toast('Вид: ' + vizName(v));
+}
+
+function vizName(v) {
+  const b = document.querySelector(`#p-viz button[data-v="${v}"]`);
+  return b ? b.textContent : v;
+}
+
+function vizAutoTick() {
+  const mode = (S.cfg.theme || {}).vizAuto || 'off';
+  if (mode === 'off' || mode === 'track') { vizAutoAt = 0; return; }
+  const ms = (parseInt(mode, 10) || 60) * 1000;
+  if (!vizAutoAt) { vizAutoAt = vizT + ms; return; }
+  if (vizT < vizAutoAt) return;
+  vizAutoAt = vizT + ms;
+  nextViz('timer');
 }
 
 // палочки по кругу
@@ -3197,7 +3493,7 @@ function vizDust(ac, live, p) {
   }
   const kick = beatSm * 30 * p;
   for (const d of dust) {
-    d.a += d.s * (1 + beatSm * 2.4);
+    d.a += d.s * (1 + beatSm * 2.4) * vizSpd;
     d.v += (kick - d.v) * 0.12;
     const rr = d.d + d.v;
     const x = cx + Math.cos(d.a) * rr;
@@ -3224,7 +3520,7 @@ function vizTunnel(ac, live, p) {
   for (let i = rings.length - 1; i >= 0; i--) {
     const g = rings[i];
     // чем дальше кольцо, тем быстрее уходит - это и даёт ощущение скорости
-    g.r += (1.1 + g.r * 0.011) * p;
+    g.r += (1.1 + g.r * 0.011) * p * vizSpd;
     if (g.r > far) { rings.splice(i, 1); continue; }
 
     // гаснет не по времени, а по расстоянию: ближние яркие, дальние растворяются
@@ -3265,9 +3561,9 @@ function vizFall(ac, live, p) {
 
   // текст поверх должен оставаться читаемым, поэтому полоса пониже и пожиже
   const h = Math.min(vh * 0.34, 260);
-  vizX.globalAlpha = 0.6;
+  vizX.globalAlpha = vizA * 0.6;
   vizX.drawImage(fallC, 0, vh - h, vw, h);
-  vizX.globalAlpha = 1;
+  vizX.globalAlpha = vizA;
 
   // верхний край растворяем, иначе полоса обрывается линейкой
   vizX.globalCompositeOperation = 'destination-out';
@@ -3310,7 +3606,7 @@ function vizSpiral(ac, live, p) {
   const r0 = r + 14;
   const rMax = Math.min(vw * 0.44, vh * 0.46);
   const span = Math.max(40, rMax - r0);
-  const rot = vizT / 11000;
+  const rot = vizClock / 11000;
 
   for (let i = 0; i < NSPI; i++) {
     const t = i / NSPI;
@@ -3383,7 +3679,7 @@ function vizWarp(ac, live, p) {
   }
 
   // даже на паузе звёзды медленно едут - статичная точка выглядит как мусор на экране
-  const speed = (0.0045 + beatSm * 0.02) * p;
+  const speed = (0.0045 + beatSm * 0.02) * p * vizSpd;
   const f = Math.min(vw, vh) * 0.62;
   vizX.lineCap = 'round';
 
@@ -3418,7 +3714,7 @@ function vizGrid(ac, live, p) {
   const cx = vw / 2;
   const depth = 15;
 
-  gridZ = (gridZ + (0.006 + beatSm * 0.03) * p) % 1;
+  gridZ = (gridZ + (0.006 + beatSm * 0.03) * p * vizSpd) % 1;
 
   // поперечные линии: чем дальше, тем плотнее друг к другу
   for (let i = 0; i < depth; i++) {

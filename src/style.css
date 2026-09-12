@@ -441,6 +441,17 @@ a:hover{text-decoration:underline}
 .pick button:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .pick button.on{background:rgba(var(--ac),.26);color:#fff}
 
+/* видов стало восемнадцать - без заголовков это была бы стена кнопок */
+.pick-wrap{padding:8px 8px 9px}
+.viz-group{
+  flex-basis:100%;width:100%;
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim2);margin:9px 0 5px 4px;
+}
+.viz-group:first-child{margin-top:2px}
+/* отбивка перед «выключить»: та же ступенька, но без заголовка */
+.viz-gap{flex-basis:100%;width:100%;height:10px}
+
 /* ---- библиотека ---- */
 .lib-bar{
   flex:none;display:flex;align-items:center;gap:12px;
@@ -1039,6 +1050,37 @@ body.full .full-btn{opacity:.5}
 .preset-n{font-size:13.5px;font-weight:600;color:var(--ink)}
 .preset-h{font-size:11.5px;color:var(--dim2);margin-top:3px;line-height:1.45}
 .preset.on .preset-n{color:#fff}
+
+/* ===== свои профили оформления ===== */
+.profiles{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.prof{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 9px 8px 11px;border-radius:11px;
+  background:var(--glass);border:1px solid var(--line);
+  transition:.16s var(--ease);
+}
+.prof:hover{background:var(--glass2);border-color:rgba(255,255,255,.16)}
+.prof.on{border-color:rgba(var(--ac),.6);background:rgba(var(--ac),.13)}
+.prof-sw{width:13px;height:13px;border-radius:5px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.prof-n{font-size:13px;color:var(--ink);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prof.on .prof-n{color:#fff}
+.prof-x{
+  font-size:12px;color:var(--dim2);padding:2px 4px;border-radius:6px;line-height:1;
+  opacity:0;transition:.14s;
+}
+.prof:hover .prof-x{opacity:1}
+.prof-x:hover{color:#ff8f8f;background:rgba(255,90,90,.14)}
+.prof-add{
+  padding:9px 14px;border-radius:11px;font-size:13px;
+  background:rgba(var(--ac),.14);border:1px dashed rgba(var(--ac),.4);color:var(--ink);
+  transition:.16s var(--ease);
+}
+.prof-add:hover{background:rgba(var(--ac),.24);border-style:solid}
+.prof-inp{
+  padding:8px 11px;border-radius:11px;font-size:13px;width:180px;
+  background:var(--glass2);border:1px solid rgba(var(--ac),.5);color:var(--ink);outline:0;
+}
+.prof-empty{font-size:12.2px;color:var(--dim2)}
 
 /* ===== выбор шрифта ===== */
 .font-lab{

@@ -203,6 +203,14 @@
       <div class="set-scroll">
 
         <div class="set-block">
+          <h3>Мои профили</h3>
+          <div class="profiles" id="profiles"></div>
+          <p class="hint">Профиль запоминает всё оформление разом: тему, шрифты, цвет,
+             визуализацию с её настройками, раскладку, обложку и фон. Настроил под себя —
+             сохрани, и можно переключаться одним нажатием. Нажми на имя, чтобы переименовать.</p>
+        </div>
+
+        <div class="set-block">
           <h3>Готовые темы</h3>
           <div class="presets" id="presets"></div>
         </div>
@@ -226,28 +234,60 @@
 
         <div class="set-block">
           <h3>Визуализация</h3>
-          <div class="pick-row">
-            <span class="pick-lab">Вид</span>
-            <div class="pick" id="p-viz">
-              <button data-v="ring"   title="палочки вокруг обложки">Кольцо</button>
-              <button data-v="radial" title="замкнутая волна вокруг обложки">Круговая волна</button>
-              <button data-v="wave"   title="живая осциллограмма">Осциллограф</button>
-              <button data-v="bars"   title="столбики по низу экрана">Столбики</button>
-              <button data-v="dust"   title="частицы, которые расталкивает басом">Пыль</button>
-              <button data-v="tunnel" title="кольца улетают от обложки на каждую долю">Туннель</button>
-              <button data-v="fall"   title="спектрограмма: старый звук уползает вверх">Водопад</button>
-              <button data-v="mirror" title="столбики от средней линии в обе стороны">Зеркало</button>
-              <button data-v="spiral" title="спираль точек: у центра низы, к краю верхи">Спираль</button>
-              <button data-v="bloom"  title="цветок, у которого каждый лепесток дышит своей полосой">Лепестки</button>
-              <button data-v="warp"   title="звёзды летят на тебя, скорость держит бас">Варп</button>
-              <button data-v="grid"   title="сетка уходит за горизонт, на горизонте спектр">Горизонт</button>
-              <button data-v="off">Нет</button>
-            </div>
+
+          <div class="pick pick-wrap" id="p-viz">
+            <div class="viz-group">Вокруг обложки</div>
+            <button data-v="ring"   title="палочки вокруг обложки">Кольцо</button>
+            <button data-v="radial" title="замкнутая волна вокруг обложки">Круговая волна</button>
+            <button data-v="tunnel" title="кольца улетают от обложки на каждую долю">Туннель</button>
+            <button data-v="spiral" title="спираль точек: у центра низы, к краю верхи">Спираль</button>
+            <button data-v="bloom"  title="цветок, у которого каждый лепесток дышит своей полосой">Лепестки</button>
+            <button data-v="sphere" title="точки лежат по шару, шар крутится и дышит">Сфера</button>
+            <button data-v="kaleid" title="симметричный узор, который собирается из спектра">Калейдоскоп</button>
+            <button data-v="pulsar" title="длинные лучи и вспышка на каждую долю">Пульсар</button>
+
+            <div class="viz-group">Во весь экран</div>
+            <button data-v="wave"   title="живая осциллограмма">Осциллограф</button>
+            <button data-v="bars"   title="столбики по низу экрана">Столбики</button>
+            <button data-v="mirror" title="столбики от средней линии в обе стороны">Зеркало</button>
+            <button data-v="fall"   title="спектрограмма: старый звук уползает вверх">Водопад</button>
+            <button data-v="aurora" title="занавесы северного сияния колышутся под музыку">Аврора</button>
+            <button data-v="ribbon" title="лента вьётся через экран и перекручивается">Лента</button>
+
+            <div class="viz-group">Вокруг тебя</div>
+            <button data-v="dust"   title="частицы, которые расталкивает басом">Пыль</button>
+            <button data-v="warp"   title="звёзды летят на тебя, скорость держит бас">Варп</button>
+            <button data-v="grid"   title="сетка уходит за горизонт, на горизонте спектр">Горизонт</button>
+            <button data-v="rain"   title="капли падают чаще там, где громче; внизу мокрый пол">Ливень</button>
+
+            <div class="viz-gap"></div>
+            <button data-v="off">Выключить</button>
           </div>
+
           <label class="rng">Сила
             <input type="range" id="r-vizpower" min="40" max="170" step="5">
             <em id="r-vizpower-v"></em>
           </label>
+          <label class="rng">Скорость
+            <input type="range" id="r-vizspeed" min="30" max="200" step="5">
+            <em id="r-vizspeed-v"></em>
+          </label>
+          <label class="rng">Насыщенность
+            <input type="range" id="r-vizalpha" min="30" max="100" step="5">
+            <em id="r-vizalpha-v"></em>
+          </label>
+
+          <div class="pick-row">
+            <span class="pick-lab">Менять сама</span>
+            <div class="pick" id="p-vizauto">
+              <button data-v="off">Не менять</button>
+              <button data-v="track" title="новый трек - новый вид">Со сменой трека</button>
+              <button data-v="60">Раз в минуту</button>
+              <button data-v="300">Раз в пять минут</button>
+            </div>
+          </div>
+          <p class="hint">«Насыщенность» стоит убавить, если визуализация спорит с текстом песни:
+             форма останется, но перестанет лезть на первый план.</p>
         </div>
 
         <div class="set-block">
@@ -751,6 +791,7 @@
 <audio id="audio" preload="metadata"></audio>
 <audio id="prev" preload="none"></audio>
 
+<script src="viz2.js"></script>
 <script src="app.js"></script>
 <script src="studio.js"></script>
 </body>
