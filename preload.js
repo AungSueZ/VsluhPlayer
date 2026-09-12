@@ -87,6 +87,10 @@ contextBridge.exposeInMainWorld('api', {
     list:      ()        => ipcRenderer.invoke('video:list')
   },
 
+  profile: {
+    pick:      (kind, key) => ipcRenderer.invoke('profile:pick', kind, key)
+  },
+
   smtc: {
     get:       ()        => ipcRenderer.invoke('smtc:get'),
     control:   what      => ipcRenderer.invoke('smtc:control', what),

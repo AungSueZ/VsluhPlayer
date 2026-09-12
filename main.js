@@ -348,6 +348,45 @@ function wireIpc() {
 
   ipcMain.handle('video:clear', () => { store.set({ videoFolder: '' }); return ''; });
 
+  // картинки профиля копируем к себе: оригинал потом могут удалить или
+  // унести на флешке, а лежать они должны там, откуда сервер умеет отдавать
+  ipcMain.handle('profile:pick', async (e, kind, key) => {
+    const KINDS = { avatar: 1, banner: 1, bg: 1, pl: 1 };
+    if (!KINDS[kind]) return '';
+    // у плейлистов картинок много, поэтому к виду добавляется их id.
+    // чистим имя: оно станет частью пути на диске
+    const slot = kind + (key ? '-' + String(key).replace(/[^a-z0-9_-]/gi, '') : '');
+
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Картинка для профиля',
+      properties: ['openFile'],
+      filters: [{ name: 'Картинки', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }]
+    });
+    if (r.canceled || !r.filePaths.length) {
+      return key ? '' : (store.all.profile || {})[kind] || '';
+    }
+
+    const from = r.filePaths[0];
+    const dir = path.join(app.getPath('userData'), 'profile');
+    fs.mkdirSync(dir, { recursive: true });
+
+    const ext = (path.extname(from) || '.jpg').toLowerCase();
+    const to = path.join(dir, slot + '-' + Date.now().toString(36) + ext);
+    fs.copyFileSync(from, to);
+
+    // прошлую картинку этого же места убираем, иначе папка растёт с каждой
+    // заменой. сравниваем именно со slot: у плейлистов в него входит их id,
+    // и по одному лишь виду "pl-" мы бы снесли обложки всем остальным
+    try {
+      for (const name of fs.readdirSync(dir)) {
+        if (!name.startsWith(slot + '-') || path.join(dir, name) === to) continue;
+        fs.rmSync(path.join(dir, name), { force: true });
+      }
+    } catch { /* не удалось - переживём, это лишь место на диске */ }
+
+    return to;
+  });
+
   ipcMain.handle('video:list', () => {
     const dir = store.all.videoFolder;
     if (!dir) return [];

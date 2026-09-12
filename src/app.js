@@ -204,6 +204,7 @@ function play(track, fromQueue) {
   loadLyrics(track);
   renderRows();
   renderQueue();
+  touchPlay(track);
   if ((S.cfg.theme || {}).vizAuto === 'track') nextViz('track');
   window.api.settings.set({ lastTrack: track.id });
 }
@@ -254,6 +255,7 @@ async function setMediaSession(t, cov) {
 
 function step(dir) {
   if (S.source !== 'local') { streamStep(dir); return; }
+  if (dir > 0) waveTopUp();          // волна не должна упереться в конец очереди
   if (!S.order.length) return;
   if (S.cfg.repeat === 'one' && dir > 0) { audio.currentTime = 0; audio.play(); return; }
 
@@ -331,6 +333,7 @@ audio.addEventListener('play', () => {
 });
 audio.addEventListener('pause', paintPlay);
 audio.addEventListener('ended', () => {
+  countPlay(S.track);
   if (SLEEP.mode === 'track') { sleepNow(); return; }
   step(1);
 });
@@ -342,7 +345,51 @@ audio.addEventListener('loadedmetadata', () => {
   if (S.track && !S.track.duration) S.track.duration = Math.round(audio.duration);
 });
 audio.addEventListener('timeupdate', () => { if (S.source === 'local') paintProgress(); });
-setInterval(() => { if (S.track && !audio.paused) report(); }, 5000);
+setInterval(() => {
+  if (!S.track || audio.paused) return;
+  report();
+  const s = stats();
+  s.seconds += 5;
+  saveStats();
+}, 5000);
+
+/* ---- что и сколько слушали ---- */
+// считается на твоём компьютере и никуда не уходит. нужно "Моей волне",
+// чтобы отличать привычное от того, что давно не включали, и титулам,
+// которые зарабатываются, а не покупаются
+
+function stats() {
+  const s = (S.cfg.stats = S.cfg.stats || {});
+  s.plays = s.plays || {};
+  s.last = s.last || {};
+  s.total = s.total || 0;
+  s.seconds = s.seconds || 0;
+  return s;
+}
+
+let statsT = null;
+function saveStats() {
+  // копится каждые пять секунд - писать на диск так часто незачем
+  clearTimeout(statsT);
+  statsT = setTimeout(() => window.api.settings.set({ stats: stats() }), 2000);
+}
+
+// дослушал до конца - это и есть прослушивание. пропустил на середине не в счёт
+function countPlay(t) {
+  if (!t || !t.id) return;
+  const s = stats();
+  s.plays[t.id] = (s.plays[t.id] || 0) + 1;
+  s.last[t.id] = Date.now();
+  s.total++;
+  saveStats();
+}
+
+// а вот "когда включали" отмечаем при запуске: для волны важно и это
+function touchPlay(t) {
+  if (!t || !t.id) return;
+  stats().last[t.id] = Date.now();
+  saveStats();
+}
 
 /* ===================== текст песни ===================== */
 const LY = { items: [], lines: [], words: [], cur: -2, plain: false };
@@ -598,10 +645,215 @@ function toggleFav(id) {
   renderRows();
 }
 
+// "1 трек", "2 трека", "5 треков"
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  return b === 1 ? one : many;
+}
+
+// обложка плейлиста: своя, если поставили, иначе от первого трека внутри
+function plCover(p) {
+  if (!p) return '';
+  const own = String(p.cover || '').trim();
+  if (own) return /^https:\/\//i.test(own) ? cssUrl(own) : window.api.file(own);
+  const first = (p.tracks || [])[0];
+  if (!first) return '';
+  const t = S.tracks.find(x => x.id === first);
+  return t ? coverUrl(t) : '';
+}
+
+/* ---- моя волна ---- */
+// бесконечная подборка из твоей же библиотеки. сервера тут нет, поэтому
+// "похожесть" взять неоткуда - зато есть то, что честно посчитано на месте:
+// что ты дослушивал, что отметил любимым и когда включал в последний раз
+
+const WAVE_NAMES = { usual: 'Обычная', fav: 'Любимое', rare: 'Забытое', artist: 'По артисту' };
+
+function wave() {
+  const w = (S.cfg.wave = S.cfg.wave || {});
+  w.mode = WAVE_NAMES[w.mode] ? w.mode : 'usual';
+  return w;
+}
+
+function waveScore(t, mode, s, now, artist) {
+  const plays = s.plays[t.id] || 0;
+  const last = s.last[t.id] || 0;
+  const days = last ? (now - last) / 86400000 : 999;
+  const fav = (S.cfg.favorites || []).includes(t.id) ? 1 : 0;
+  let sc;
+
+  if (mode === 'fav') {
+    sc = 0.4 + fav * 6 + Math.min(plays, 12) * 0.7;
+  } else if (mode === 'rare') {
+    // чем меньше слушал и чем давнее - тем выше шанс
+    sc = 0.4 + (plays ? 5 / (plays + 1) : 6) + Math.min(days, 200) / 45;
+  } else if (mode === 'artist') {
+    const same = artist && (t.artist || '').trim().toLowerCase() === artist;
+    sc = 0.3 + (same ? 8 : 0.6) + fav * 1.2;
+  } else {
+    // привычное вперемешку с подзабытым - чтобы не было ни скуки, ни каши.
+    // бонус "давно не включал" даём только тому, что вообще включали:
+    // иначе его получают все нетронутые треки, а их всегда большинство,
+    // и "Обычная" превращается во второе "Забытое"
+    const known = plays > 0 || last > 0;
+    sc = 1 + fav * 2.5 + Math.min(plays, 8) * 0.5
+       + (known ? Math.min(days, 90) / 45 : 0.6);
+  }
+
+  // только что игравшее не подсовываем снова
+  if (days < 0.03) sc *= 0.04;
+  return Math.max(0.01, sc);
+}
+
+// взвешенный выбор без повторов: чем больше вес, тем чаще выпадает
+function wavePick(n, mode, avoid) {
+  const s = stats(), now = Date.now();
+  const skip = new Set(avoid || []);
+  const artist = mode === 'artist'
+    ? ((S.track && S.track.artist) || '').trim().toLowerCase() : '';
+
+  const pool = S.tracks.filter(t => !skip.has(t.id));
+  if (!pool.length) return [];
+
+  const weights = pool.map(t => waveScore(t, mode, s, now, artist));
+  const out = [];
+
+  for (let k = 0; k < n && pool.length; k++) {
+    let sum = 0;
+    for (const w of weights) sum += w;
+    let r = Math.random() * sum, i = 0;
+    while (i < pool.length - 1 && (r -= weights[i]) > 0) i++;
+    out.push(pool[i].id);
+    pool.splice(i, 1);
+    weights.splice(i, 1);
+  }
+  return out;
+}
+
+function startWave(mode) {
+  const w = wave();
+  if (mode) w.mode = mode;
+  const ids = wavePick(40, w.mode, []);
+  if (!ids.length) { toast('В библиотеке нечего играть'); return; }
+
+  w.on = true;
+  window.api.settings.set({ wave: { mode: w.mode, on: true } });
+
+  setQueue(ids);
+  S.pos = 0;
+  const t = S.tracks.find(x => x.id === ids[0]);
+  if (t) play(t, false);
+
+  renderChips();
+  renderPlHead();
+  toast('Моя волна: ' + WAVE_NAMES[w.mode].toLowerCase());
+}
+
+function stopWave() {
+  wave().on = false;
+  window.api.settings.set({ wave: { on: false } });
+  renderChips();
+  renderPlHead();
+}
+
+// очередь не должна кончаться: как только впереди мало - досыпаем.
+// добавляем и в queue, и в order руками, чтобы не пересобирать порядок
+// целиком - иначе на каждом пополнении всё бы перетасовывалось заново
+function waveTopUp() {
+  const w = S.cfg.wave || {};
+  if (!w.on || S.source !== 'local') return;
+  if (S.order.length - S.pos > 5) return;
+
+  const ids = wavePick(20, w.mode, S.queue.slice(-80));
+  if (!ids.length) return;
+  for (const id of ids) {
+    S.order.push(S.queue.length);
+    S.queue.push(id);
+  }
+  renderQueue();
+}
+
+// шапка показывает либо волну, либо открытый плейлист.
+// у "Всех" и "Любимых" её нет - там показывать нечего
+function renderPlHead() {
+  const head = $('pl-head');
+  if (!head) return;
+
+  const w = S.cfg.wave || {};
+  const p = (S.cfg.playlists || []).find(x => x.id === S.cfg.libTab);
+
+  head.hidden = !w.on && !p;
+  if (head.hidden) return;
+
+  const onWave = !!w.on;
+  $('wave-mode').hidden = !onWave;
+  $('wave-off').hidden = !onWave;
+  $('pl-pic').hidden = onWave || !p;
+  $('pl-pic-x').hidden = onWave || !p || !p.cover;
+
+  if (onWave) {
+    const box = $('pl-cover');
+    box.style.backgroundImage = '';
+    box.classList.remove('has');
+    box.firstElementChild.textContent = '✦';
+    $('pl-name').textContent = 'Моя волна';
+    $('pl-sub').textContent = 'собрана из твоей библиотеки · ' + (S.order.length - S.pos)
+      + ' впереди';
+    for (const b of $('wave-mode').querySelectorAll('button')) {
+      b.classList.toggle('on', b.dataset.v === (w.mode || 'usual'));
+    }
+    return;
+  }
+
+  const c = plCover(p), box = $('pl-cover');
+  box.firstElementChild.textContent = '♫';
+  box.style.backgroundImage = c ? `url("${c}")` : '';
+  box.classList.toggle('has', !!c);
+
+  $('pl-name').textContent = p.name;
+  const n = p.tracks.length;
+  $('pl-sub').textContent = n + ' ' + plural(n, 'трек', 'трека', 'треков')
+    + (p.cover ? ' · своя обложка' : c ? ' · обложка от первого трека' : '');
+}
+
+function wirePlHead() {
+  const cur = () => (S.cfg.playlists || []).find(x => x.id === S.cfg.libTab);
+  const save = () => {
+    window.api.settings.set({ playlists: S.cfg.playlists });
+    renderChips();
+    renderPlHead();
+  };
+  $('pl-pic').onclick = async () => {
+    const p = cur();
+    if (!p) return;
+    const f = await window.api.profile.pick('pl', p.id);
+    if (!f) return;
+    p.cover = f;
+    save();
+  };
+  $('pl-pic-x').onclick = () => {
+    const p = cur();
+    if (!p) return;
+    p.cover = '';
+    save();
+  };
+
+  for (const b of $('wave-mode').querySelectorAll('button')) {
+    // смена характера пересобирает подборку заново, с текущего места
+    b.onclick = () => startWave(b.dataset.v);
+  }
+  $('wave-off').onclick = stopWave;
+
+  renderPlHead();
+}
+
 function newPlaylist(name, firstTrack) {
   const p = {
     id: 'p' + Date.now().toString(36),
     name: (name || '').trim() || 'Новый плейлист',
+    cover: '',
     tracks: firstTrack ? [firstTrack] : []
   };
   S.cfg.playlists = [...(S.cfg.playlists || []), p];
@@ -683,10 +935,18 @@ function renderChips() {
       $('lib-scroll').scrollTop = 0;
       renderChips();
       renderRows();
+      renderPlHead();
     };
     box.appendChild(b);
     return b;
   };
+
+  // волна не вкладка, а действие: жмёшь - и она начинает играть
+  const wv = el('button', 'chip chip-wave' + ((S.cfg.wave || {}).on ? ' on' : ''));
+  wv.append(document.createTextNode('✦ Моя волна'));
+  wv.title = 'бесконечная подборка из твоей библиотеки';
+  wv.onclick = () => startWave();
+  box.appendChild(wv);
 
   mk('all', 'Все', S.tracks.length);
   mk('fav', '♥ Любимые', (S.cfg.favorites || []).length);
@@ -694,6 +954,12 @@ function renderChips() {
   for (const p of S.cfg.playlists || []) {
     const b = mk(p.id, p.name, p.tracks.length);
     b.title = 'двойной клик — переименовать';
+    const th = plCover(p);
+    if (th) {
+      const i = el('div', 'chip-ava');
+      i.style.backgroundImage = `url("${th}")`;
+      b.prepend(i);
+    }
     b.ondblclick = () => chipInput(b, p.name, v => {
       p.name = (v || '').trim() || p.name;
       window.api.settings.set({ playlists: S.cfg.playlists });
@@ -2201,6 +2467,224 @@ function nameInput(node, value, done) {
 
 function paintThemeControls() {
   if (typeof repaintTheme === 'function') repaintTheme();
+}
+
+/* ===================== профиль ===================== */
+
+// цветов для ника и титула нужно больше, чем для акцента интерфейса:
+// тут это украшение, а не рабочий цвет, которым красится половина экрана
+const NICK_COLORS = [
+  '#ff5c5c', '#ff8a3d', '#ffd93d', '#8cd94f', '#4ff0c0',
+  '#57a6ff', '#9b8cff', '#d47aff', '#ff4fd8', '#e8e6ef'
+];
+
+// титулы не покупаются - часть открыта сразу, часть зарабатывается.
+// need получает подсчитанное и решает, открыт ли титул
+const TITLES = [
+  { id: 'listener', name: 'Слушатель' },
+  { id: 'night',    name: 'Полуночник' },
+  { id: 'c100',     name: 'Сто треков',    need: c => c.total >= 100,    hint: '100 дослушанных' },
+  { id: 'c1000',    name: 'Тысяча треков', need: c => c.total >= 1000,   hint: '1000 дослушанных' },
+  { id: 'h10',      name: 'Десять часов',  need: c => c.hours >= 10,     hint: '10 часов со звуком' },
+  { id: 'h100',     name: 'Сто часов',     need: c => c.hours >= 100,    hint: '100 часов со звуком' },
+  { id: 'keeper',   name: 'Собиратель',    need: c => c.lib >= 300,      hint: '300 треков в библиотеке' },
+  { id: 'archive',  name: 'Хранитель',     need: c => c.lib >= 1000,     hint: '1000 треков в библиотеке' },
+  { id: 'heart',    name: 'Сердцеед',      need: c => c.fav >= 50,       hint: '50 в любимых' },
+  { id: 'loyal',    name: 'Постоянный',    need: c => c.top >= 20,       hint: 'один трек 20 раз' }
+];
+
+function prof() {
+  const p = (S.cfg.profile = S.cfg.profile || {});
+  return p;
+}
+
+function setProf(patch) {
+  Object.assign(prof(), patch);
+  window.api.settings.set({ profile: patch });
+  renderProfile();
+}
+
+// картинка профиля - либо ссылка из интернета, либо файл у нас в папке
+function profPic(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  if (/^https:\/\//i.test(s)) return cssUrl(s);
+  return window.api.file(s);
+}
+
+// всё, что посчитали о прослушанном: нужно и плиткам, и титулам, и волне
+function listenCounts() {
+  const s = stats();
+  let top = 0;
+  for (const k in s.plays) if (s.plays[k] > top) top = s.plays[k];
+  return {
+    total: s.total || 0,
+    hours: Math.floor((s.seconds || 0) / 3600),
+    lib: S.tracks.length,
+    fav: (S.cfg.favorites || []).length,
+    top: top
+  };
+}
+
+function renderProfile() {
+  const p = prof();
+
+  const ava = $('pf-ava'), pic = profPic(p.avatar);
+  ava.style.backgroundImage = pic ? `url("${pic}")` : '';
+  ava.classList.toggle('has', !!pic);
+
+  const ban = profPic(p.banner);
+  $('pf-banner').style.backgroundImage = ban ? `url("${ban}")` : '';
+
+  const bg = profPic(p.bg);
+  $('pf-bg').style.backgroundImage = bg ? `url("${bg}")` : '';
+  $('pf-bg').classList.toggle('on', !!bg);
+
+  $('pf-name').textContent = (p.name || '').trim() || 'Без имени';
+  $('pf-name').style.setProperty('--pf-name-c', p.color || '#fff');
+
+  const tag = (p.tag || '').trim();
+  $('pf-tag').textContent = tag ? '@' + tag : '';
+  $('pf-tag').hidden = !tag;
+
+  const st = (p.status || '').trim();
+  $('pf-status').textContent = st;
+  $('pf-status').hidden = !st;
+
+  const ab = (p.about || '').trim();
+  $('pf-about').textContent = ab;
+  $('pf-about').hidden = !ab;
+
+  const ttl = (p.title || '').trim();
+  $('pf-title').textContent = ttl;
+  $('pf-title').hidden = !ttl;
+  $('pf-title').style.setProperty('--pf-title-c', p.titleColor || '');
+
+  renderProfStats();
+  renderTitles();
+}
+
+function renderProfStats() {
+  const box = $('pf-stats');
+  if (!box) return;
+  const c = listenCounts();
+  const s = stats();
+
+  // любимый артист - у кого больше всего дослушиваний
+  const byArtist = {};
+  for (const t of S.tracks) {
+    const n = s.plays[t.id] || 0;
+    if (!n) continue;
+    const a = (t.artist || '').trim() || '—';
+    byArtist[a] = (byArtist[a] || 0) + n;
+  }
+  let fav = '—', favN = 0;
+  for (const a in byArtist) if (byArtist[a] > favN) { favN = byArtist[a]; fav = a; }
+
+  const tiles = [
+    [c.total, 'дослушано треков'],
+    [c.hours < 1 ? Math.floor((s.seconds || 0) / 60) + ' мин' : c.hours + ' ч', 'со звуком'],
+    [c.lib, 'в библиотеке'],
+    [c.fav, 'в любимых'],
+    [favN ? fav : '—', 'чаще всего']
+  ];
+
+  box.textContent = '';
+  for (const [v, lab] of tiles) {
+    const d = el('div', 'pf-stat');
+    const b = el('b'); b.textContent = String(v); b.title = String(v);
+    const sp = el('span'); sp.textContent = lab;
+    d.append(b, sp);
+    box.appendChild(d);
+  }
+}
+
+function renderTitles() {
+  const box = $('pf-titles');
+  if (!box) return;
+  const c = listenCounts();
+  const cur = (prof().title || '').trim();
+
+  box.textContent = '';
+  for (const t of TITLES) {
+    const open = !t.need || t.need(c);
+    const b = el('button', 'ttl' + (cur === t.name ? ' on' : '') + (open ? '' : ' locked'));
+    const n = el('span'); n.textContent = t.name;
+    b.appendChild(n);
+    if (!open) {
+      const e = el('em'); e.textContent = t.hint || '';
+      b.appendChild(e);
+      b.title = 'откроется: ' + (t.hint || '');
+    } else {
+      b.onclick = () => {
+        setProf({ title: cur === t.name ? '' : t.name });
+        $('pf-title-own').value = prof().title || '';
+      };
+    }
+    box.appendChild(b);
+  }
+}
+
+function wireProfile() {
+  renderProfile();
+
+  const bind = (id, key, max) => {
+    const inp = $(id);
+    if (!inp) return;
+    inp.value = prof()[key] || '';
+    inp.oninput = () => setProf({ [key]: inp.value.slice(0, max || 200) });
+  };
+  bind('pf-in-name', 'name', 32);
+  bind('pf-in-tag', 'tag', 20);
+  bind('pf-in-status', 'status', 64);
+  bind('pf-in-about', 'about', 240);
+  bind('pf-in-avatar', 'avatar');
+  bind('pf-in-banner', 'banner');
+  bind('pf-in-bg', 'bg');
+
+  // свой титул главнее готового: написал руками - отметка с кнопок снимается
+  const own = $('pf-title-own');
+  own.value = prof().title || '';
+  own.oninput = () => { setProf({ title: own.value.slice(0, 24) }); renderTitles(); };
+
+  // выбор файла и очистка для трёх картинок сразу
+  for (const b of document.querySelectorAll('#v-profile [data-pick]')) {
+    const kind = b.dataset.pick;
+    b.onclick = async () => {
+      const p = await window.api.profile.pick(kind);
+      if (!p) return;
+      setProf({ [kind]: p });
+      $('pf-in-' + kind).value = p;
+    };
+  }
+  for (const b of document.querySelectorAll('#v-profile [data-clr]')) {
+    const kind = b.dataset.clr;
+    b.onclick = () => { setProf({ [kind]: '' }); $('pf-in-' + kind).value = ''; };
+  }
+
+  const pal = (boxId, key) => {
+    const box = $(boxId);
+    const paint = () => {
+      box.textContent = '';
+      const cur = (prof()[key] || '').toLowerCase();
+
+      const auto = el('button', 'auto' + (cur ? '' : ' on'));
+      auto.title = 'как у интерфейса';
+      auto.onclick = () => { setProf({ [key]: '' }); paint(); };
+      box.appendChild(auto);
+
+      for (const c of NICK_COLORS) {
+        const b = el('button', cur === c ? 'on' : '');
+        b.style.background = c;
+        b.title = c;
+        b.onclick = () => { setProf({ [key]: c }); paint(); };
+        box.appendChild(b);
+      }
+    };
+    paint();
+  };
+  pal('pf-pal', 'color');
+  pal('pf-title-pal', 'titleColor');
 }
 
 /* ===================== настройки ===================== */
@@ -3921,6 +4405,8 @@ requestAnimationFrame(drawPx);
   loadDlStatus();
   window.api.dl.queue().then(renderDlq).catch(() => {});
   safe('темы', wireThemes);
+  safe('профиль', wireProfile);
+  safe('шапка плейлиста', wirePlHead);
   safe('скорость', wireRate);
   safe('перетаскивание', wireDrop);
   safe('оформление', applyTheme);

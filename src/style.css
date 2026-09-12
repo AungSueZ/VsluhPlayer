@@ -441,6 +441,111 @@ a:hover{text-decoration:underline}
 .lay-btn{right:58px}
 .stu-btn{right:102px}
 
+/* ===== шапка плейлиста ===== */
+.pl-head{
+  flex:none;display:flex;align-items:center;gap:14px;
+  padding:12px 20px;border-bottom:1px solid var(--line);
+}
+.pl-cover{
+  width:54px;height:54px;flex:none;border-radius:11px;overflow:hidden;
+  background:var(--glass2);border:1px solid var(--line);
+  background-size:cover;background-position:center;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:var(--dim2);
+}
+.pl-cover.has span{display:none}
+.pl-meta{flex:1;min-width:0}
+.pl-name{font-size:17px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-sub{font-size:12px;color:var(--dim2);margin-top:2px}
+
+/* миниатюра в чипе плейлиста */
+.chip-ava{
+  width:16px;height:16px;border-radius:5px;flex:none;margin-right:2px;
+  background-size:cover;background-position:center;background-color:var(--glass2);
+}
+
+/* ===== профиль ===== */
+
+#v-profile{position:relative}
+/* фон вкладки - под всем содержимым и приглушённый, чтобы текст читался */
+.pf-bg{
+  position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-size:cover;background-position:center;
+  opacity:0;transition:opacity .5s var(--ease);
+}
+.pf-bg.on{opacity:.3}
+.pf-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,7,11,.5),rgba(8,7,11,.92))}
+#v-profile .set-scroll{position:relative;z-index:1}
+
+.pf-card{
+  border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  background:var(--glass);margin-bottom:30px;
+}
+.pf-banner{
+  height:132px;background-size:cover;background-position:center;
+  background-image:linear-gradient(115deg,rgba(var(--ac),.5),rgba(var(--ac),.12) 60%,transparent);
+}
+.pf-head{display:flex;align-items:flex-end;gap:16px;padding:0 22px 16px;margin-top:-38px}
+.pf-ava{
+  width:92px;height:92px;flex:none;border-radius:26px;overflow:hidden;
+  background:var(--glass2);border:3px solid var(--bg);
+  background-size:cover;background-position:center;
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;color:var(--dim2);
+}
+.pf-ava.has span{display:none}
+.pf-who{min-width:0;padding-bottom:4px}
+.pf-name-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.pf-name{
+  font-size:25px;font-weight:700;line-height:1.15;
+  color:var(--pf-name-c,#fff);
+  text-shadow:0 2px 12px rgba(0,0,0,.5);
+}
+.pf-title{
+  font-size:11px;font-weight:600;letter-spacing:.04em;
+  padding:3px 9px;border-radius:7px;white-space:nowrap;
+  color:var(--pf-title-c,rgb(var(--ac)));
+  background:color-mix(in srgb,var(--pf-title-c,rgb(var(--ac))) 16%,transparent);
+  border:1px solid color-mix(in srgb,var(--pf-title-c,rgb(var(--ac))) 40%,transparent);
+}
+.pf-tag{font-size:13.5px;color:var(--dim);margin-top:2px}
+.pf-status{font-size:13px;color:var(--dim2);margin-top:5px;font-style:italic}
+.pf-about{
+  margin:0;padding:0 22px 20px;font-size:13.5px;line-height:1.6;
+  color:var(--dim);white-space:pre-wrap;max-width:64ch;
+}
+
+/* чем наслушал - плитки с числами */
+.pf-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.pf-stat{
+  padding:13px 14px;border-radius:12px;
+  background:var(--glass);border:1px solid var(--line);
+}
+.pf-stat b{display:block;font-size:21px;font-weight:700;color:var(--ink);line-height:1.2}
+.pf-stat span{display:block;font-size:11.5px;color:var(--dim2);margin-top:3px}
+
+/* титулы: часть открыта сразу, часть зарабатывается прослушиванием */
+.titles{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ttl{
+  padding:7px 13px;border-radius:9px;font-size:12.5px;
+  background:var(--glass);border:1px solid var(--line);color:var(--dim);
+  transition:.16s var(--ease);
+}
+.ttl:hover{background:var(--glass2);color:var(--ink)}
+.ttl.on{background:rgba(var(--ac),.22);border-color:rgba(var(--ac),.55);color:#fff}
+.ttl.locked{opacity:.4;cursor:default}
+.ttl.locked:hover{background:var(--glass);color:var(--dim)}
+.ttl em{font-style:normal;font-size:11px;color:var(--dim2);margin-left:6px}
+
+/* строки с картинками */
+.pf-pic{display:flex;align-items:center;gap:10px;padding:7px 0;flex-wrap:wrap}
+.pf-pic .pick-lab{min-width:60px}
+.pf-pic input{
+  flex:1;min-width:190px;padding:8px 11px;border-radius:9px;font-size:12.5px;
+  background:var(--glass);border:1px solid var(--line);color:var(--ink);outline:0;
+}
+.pf-pic input:focus{border-color:rgba(var(--ac),.5)}
+
 /* ===== первый запуск ===== */
 .hello{
   position:fixed;inset:0;z-index:80;
@@ -853,6 +958,12 @@ body.paused .row-bars i{animation-play-state:paused}
 .chip.on{background:rgba(var(--ac),.22);border-color:rgba(var(--ac),.45);color:#fff}
 .chip em{font-style:normal;font-size:11px;opacity:.55}
 .chip-add{border-style:dashed;color:var(--dim2)}
+/* волна - не вкладка, а действие, поэтому выглядит иначе, чем остальные чипы */
+.chip-wave{
+  background:rgba(var(--ac),.14);border-color:rgba(var(--ac),.3);color:var(--ink);
+}
+.chip-wave:hover{background:rgba(var(--ac),.24)}
+.chip-wave.on{background:rgba(var(--ac),.34);border-color:rgba(var(--ac),.7);color:#fff}
 .chip-x{
   margin-left:2px;margin-right:-4px;padding:0 3px;border-radius:4px;
   font-size:13px;line-height:1;color:inherit;opacity:.45;

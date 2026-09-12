@@ -50,6 +50,9 @@
         <svg viewBox="0 0 24 24"><path d="M3 5h18v11H3zm7 13h4l1 2H9z"/></svg><span>В системе</span>
         <em class="nav-dot" id="sys-dot" hidden></em>
       </button>
+      <button class="nav-i" data-view="profile">
+        <svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-4.4 0-8 2.4-8 5.3V21h16v-1.7c0-2.9-3.6-5.3-8-5.3"/></svg><span>Профиль</span>
+      </button>
       <button class="nav-i" data-view="themes">
         <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4.4-4-8-9-8m-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3.5 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3"/></svg><span>Темы</span>
       </button>
@@ -132,6 +135,23 @@
         </select>
       </div>
 
+      <div class="pl-head" id="pl-head" hidden>
+        <div class="pl-cover" id="pl-cover"><span>♫</span></div>
+        <div class="pl-meta">
+          <div class="pl-name" id="pl-name"></div>
+          <div class="pl-sub" id="pl-sub"></div>
+        </div>
+        <div class="pick" id="wave-mode" hidden>
+          <button data-v="usual"  title="привычное вперемешку с подзабытым">Обычная</button>
+          <button data-v="fav"    title="любимое и то, что чаще всего включаешь">Любимое</button>
+          <button data-v="rare"   title="то, что почти не слушал или давно забыл">Забытое</button>
+          <button data-v="artist" title="держится рядом с артистом, который играет">По артисту</button>
+        </div>
+        <button class="btn btn-ghost" id="pl-pic">Обложка</button>
+        <button class="btn btn-ghost" id="pl-pic-x" hidden>Убрать</button>
+        <button class="btn btn-ghost" id="wave-off" hidden>Выключить</button>
+      </div>
+
       <div class="lib-scroll" id="lib-scroll">
         <div class="lib-pad" id="lib-pad">
           <div class="lib-rows" id="lib-rows"></div>
@@ -199,6 +219,93 @@
     </section>
 
     <!-- темы -->
+    <!-- профиль -->
+    <section class="view" id="v-profile">
+      <div class="pf-bg" id="pf-bg"></div>
+      <div class="set-scroll">
+
+        <div class="pf-card" id="pf-card">
+          <div class="pf-banner" id="pf-banner"></div>
+          <div class="pf-head">
+            <div class="pf-ava" id="pf-ava"><span>♫</span></div>
+            <div class="pf-who">
+              <div class="pf-name-row">
+                <span class="pf-name" id="pf-name">Без имени</span>
+                <span class="pf-title" id="pf-title" hidden></span>
+              </div>
+              <div class="pf-tag" id="pf-tag" hidden></div>
+              <div class="pf-status" id="pf-status" hidden></div>
+            </div>
+          </div>
+          <p class="pf-about" id="pf-about" hidden></p>
+        </div>
+
+        <div class="set-block">
+          <h3>Что наслушал</h3>
+          <div class="pf-stats" id="pf-stats"></div>
+          <p class="hint">Считается на этом компьютере и никуда не уходит. Нужно «Моей волне»,
+             чтобы отличать привычное от забытого, и титулам, которые зарабатываются.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Титул</h3>
+          <div class="titles" id="pf-titles"></div>
+          <label class="num">Свой титул
+            <input type="text" id="pf-title-own" maxlength="24" placeholder="что угодно, до 24 знаков">
+          </label>
+          <div class="pal-row">
+            <span class="pick-lab">Цвет титула</span>
+            <div class="pal" id="pf-title-pal"></div>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>Кто ты</h3>
+          <label class="num">Никнейм
+            <input type="text" id="pf-in-name" maxlength="32" placeholder="как тебя звать">
+          </label>
+          <label class="num">Короткое имя
+            <input type="text" id="pf-in-tag" maxlength="20" placeholder="без собачки, латиницей">
+          </label>
+          <label class="num">Статус
+            <input type="text" id="pf-in-status" maxlength="64" placeholder="одна строка под именем">
+          </label>
+          <label class="num">О себе
+            <textarea id="pf-in-about" maxlength="240" rows="3" placeholder="несколько строк, если хочется"></textarea>
+          </label>
+          <div class="pal-row">
+            <span class="pick-lab">Цвет ника</span>
+            <div class="pal" id="pf-pal"></div>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>Картинки</h3>
+          <div class="pf-pic" data-k="avatar">
+            <span class="pick-lab">Аватар</span>
+            <input type="text" id="pf-in-avatar" placeholder="https://… или выбери файл" spellcheck="false">
+            <button class="btn btn-ghost" data-pick="avatar">Файл</button>
+            <button class="btn btn-ghost" data-clr="avatar" title="убрать">✕</button>
+          </div>
+          <div class="pf-pic" data-k="banner">
+            <span class="pick-lab">Шапка</span>
+            <input type="text" id="pf-in-banner" placeholder="https://… или выбери файл" spellcheck="false">
+            <button class="btn btn-ghost" data-pick="banner">Файл</button>
+            <button class="btn btn-ghost" data-clr="banner" title="убрать">✕</button>
+          </div>
+          <div class="pf-pic" data-k="bg">
+            <span class="pick-lab">Фон</span>
+            <input type="text" id="pf-in-bg" placeholder="https://… или выбери файл" spellcheck="false">
+            <button class="btn btn-ghost" data-pick="bg">Файл</button>
+            <button class="btn btn-ghost" data-clr="bg" title="убрать">✕</button>
+          </div>
+          <p class="hint">Выбранный файл копируется в папку приложения — если потом удалишь
+             оригинал, картинка останется. Ссылка годится только <b>https</b> и прямая на картинку.</p>
+        </div>
+
+      </div>
+    </section>
+
     <section class="view" id="v-themes">
       <div class="set-scroll">
 
