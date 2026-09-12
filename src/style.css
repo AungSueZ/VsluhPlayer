@@ -7,7 +7,11 @@
   --line:rgba(255,255,255,.075);
   --glass:rgba(255,255,255,.035);
   --glass2:rgba(255,255,255,.06);
+  --panel:rgba(8,7,10,.55);
+  --panel2:rgba(8,7,10,.72);
+  --sidebg:rgba(255,255,255,.014);
   --ac:150,140,255;              /* акцент, JS меняет под обложку */
+  --tint:0;                      /* сила перекраса интерфейса под акцент, 0..1 */
   --font-ui:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
   --font-ly:var(--font-ui);
   --tb:42px;
@@ -16,6 +20,26 @@
   --r:14px;
   --ease:cubic-bezier(.22,.61,.36,1);
 }
+
+
+/* ===== перекрас под цвет =====
+   поверхности интерфейса тянутся к акценту по мере роста --tint.
+   0 - прежний нейтральный серый, 1 - цвет виден везде.
+   левая часть каждой смеси - цветной предел, правая - исходный серый */
+:root{
+  --bg:     color-mix(in srgb, rgb(var(--ac))       calc(var(--tint) *   8%), #08070a);
+  --ink:    color-mix(in srgb, rgb(var(--ac))       calc(var(--tint) *   9%), #ece9f0);
+  --dim:    color-mix(in srgb, rgba(var(--ac),.46)  calc(var(--tint) *  26%), rgba(236,233,240,.46));
+  --dim2:   color-mix(in srgb, rgba(var(--ac),.28)  calc(var(--tint) *  26%), rgba(236,233,240,.28));
+  --line:   color-mix(in srgb, rgba(var(--ac),.20)  calc(var(--tint) * 100%), rgba(255,255,255,.075));
+  --glass:  color-mix(in srgb, rgba(var(--ac),.09)  calc(var(--tint) * 100%), rgba(255,255,255,.035));
+  --glass2: color-mix(in srgb, rgba(var(--ac),.15)  calc(var(--tint) * 100%), rgba(255,255,255,.06));
+  --panel:  color-mix(in srgb, rgba(var(--ac),.55)  calc(var(--tint) *  17%), rgba(8,7,10,.55));
+  --panel2: color-mix(in srgb, rgba(var(--ac),.72)  calc(var(--tint) *  17%), rgba(8,7,10,.72));
+  --sidebg: color-mix(in srgb, rgba(var(--ac),.05)  calc(var(--tint) * 100%), rgba(255,255,255,.014));
+}
+/* цвет берётся из обложки и меняется на каждом треке - без плавности это дёргает глаз */
+body,.titlebar,.bar,.side{transition:background-color .7s var(--ease),border-color .7s var(--ease)}
 
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
@@ -73,7 +97,7 @@ a:hover{text-decoration:underline}
 .titlebar{
   position:fixed;top:0;left:0;right:0;height:var(--tb);z-index:40;
   display:flex;align-items:center;
-  background:rgba(8,7,10,.55);
+  background:var(--panel);
   backdrop-filter:blur(22px);
   border-bottom:1px solid var(--line);
 }
@@ -93,7 +117,7 @@ a:hover{text-decoration:underline}
 .side{
   width:var(--side);flex:none;display:flex;flex-direction:column;
   border-right:1px solid var(--line);
-  background:rgba(255,255,255,.014);
+  background:var(--sidebg);
   backdrop-filter:blur(18px);
 }
 .nav{padding:14px 10px;display:flex;flex-direction:column;gap:2px}
@@ -470,7 +494,10 @@ a:hover{text-decoration:underline}
 
 /* ===== профиль ===== */
 
-#v-profile{position:relative}
+/* .view уже position:absolute - она и есть опора для фона.
+   отдельный position:relative здесь ломал прокрутку: по весу id он перебивал
+   класс, секция переставала тянуться на высоту родителя и росла по тексту,
+   а всё, что не влезло, срезалось наглухо */
 /* фон вкладки - под всем содержимым и приглушённый, чтобы текст читался */
 .pf-bg{
   position:absolute;inset:0;z-index:0;pointer-events:none;
@@ -862,7 +889,7 @@ body.paused .row-bars i{animation-play-state:paused}
 .bar{
   position:fixed;left:0;right:0;bottom:0;height:var(--bar);z-index:30;
   display:flex;align-items:center;gap:18px;padding:0 20px;
-  background:rgba(8,7,10,.72);backdrop-filter:blur(28px);
+  background:var(--panel2);backdrop-filter:blur(28px);
   border-top:1px solid var(--line);
 }
 .bar-now{width:var(--side);flex:none;display:flex;align-items:center;gap:12px;min-width:0}
@@ -1214,7 +1241,12 @@ body.full.peek .stream{opacity:1;pointer-events:auto}
 
 /* ===== палитра ===== */
 .pal-row{display:flex;align-items:center;gap:14px;padding:10px 0;flex-wrap:wrap}
-.pal{display:flex;gap:7px;flex-wrap:wrap}
+.pal{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.pal-line{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.pal-sub{
+  width:62px;flex:none;font-size:11.5px;color:var(--dim2);
+  text-transform:lowercase;letter-spacing:.02em;
+}
 .pal button{
   width:26px;height:26px;border-radius:8px;border:2px solid transparent;
   transition:.15s var(--ease);

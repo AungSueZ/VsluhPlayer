@@ -371,6 +371,17 @@
             <span class="pick-lab">Свой цвет</span>
             <div class="pal" id="pal"></div>
           </div>
+          <div class="pick-row">
+            <span class="pick-lab">Перекрас</span>
+            <div class="pick" id="p-tint">
+              <button data-v="off"  title="панели остаются нейтрально-серыми">Нет</button>
+              <button data-v="soft" title="цвет только угадывается">Лёгкий</button>
+              <button data-v="mid"  title="цвет виден на панелях, рамках и подложках">Средний</button>
+              <button data-v="full" title="цветом залито всё окно">Полный</button>
+            </div>
+          </div>
+          <p class="hint">Перекрас уводит в выбранный цвет весь интерфейс: панели, рамки, подложки и фон.
+             Если цвет берётся из обложки, приложение будет менять оттенок вместе с треком.</p>
         </div>
 
         <div class="set-block">
@@ -515,6 +526,20 @@
       <div class="set-scroll">
 
         <div class="set-block">
+          <h3>Язык</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Язык</span>
+            <div class="pick" id="p-lang">
+              <button data-v="ru">Русский</button>
+              <button data-v="uk">Українська</button>
+              <button data-v="en">English</button>
+            </div>
+          </div>
+          <p class="hint">Интерфейс переведён целиком. Текст песни, названия треков и имена артистов
+             остаются такими, какие они есть в файлах.</p>
+        </div>
+
+        <div class="set-block">
           <h3>Папки с музыкой</h3>
           <div class="folders" id="folders"></div>
           <div class="row-btns">
@@ -619,6 +644,27 @@
           </p>
           <p class="hint">На таких треках не работают эквалайзер и визуализация — звук идёт
              внутри чужого плеера, и мы его не слышим. Текст песни при этом подхватывается.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Переход между треками</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Длина</span>
+            <div class="pick" id="p-xf">
+              <button data-v="0" title="трек обрывается на своём конце, как раньше">Нет</button>
+              <button data-v="2">2 с</button>
+              <button data-v="4">4 с</button>
+              <button data-v="6">6 с</button>
+              <button data-v="9">9 с</button>
+              <button data-v="12">12 с</button>
+            </div>
+          </div>
+          <label class="sw"><input type="checkbox" id="s-xfman"><i></i><span>Переходить плавно и когда переключаешь сам</span></label>
+          <label class="sw"><input type="checkbox" id="s-level"><i></i><span>Выравнивать громкость между треками</span></label>
+          <p class="hint">Следующий трек начинается, пока текущий ещё звучит, — тишины между песнями не остаётся.
+             Выравнивание слушает, насколько трек громкий, и подводит его к общему уровню; правка ограничена
+             вдвое в обе стороны, так что тихие места останутся тихими. И то и другое работает со своих файлов:
+             у YouTube и SoundCloud звук идёт внутри их плеера, туда нам хода нет.</p>
         </div>
 
         <div class="set-block">
@@ -941,8 +987,12 @@
 
 <div class="toast" id="toast"></div>
 <audio id="audio" preload="metadata"></audio>
+<!-- вторая дека: на ней начинается следующий трек, пока первая ещё доигрывает -->
+<audio id="audio2" preload="metadata"></audio>
 <audio id="prev" preload="none"></audio>
 
+<script src="lang.js"></script>
+<script src="i18n.js"></script>
 <script src="viz2.js"></script>
 <script src="app.js"></script>
 <script src="studio.js"></script>

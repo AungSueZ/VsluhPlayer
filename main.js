@@ -18,6 +18,16 @@ const { autoUpdater } = require('electron-updater');
 
 const DEV = process.argv.includes('--dev');
 
+/* ---------- язык ----------
+   тот же словарь, что и у окна. store заводится позже, поэтому до него
+   T просто отдаёт русский - на запуске переводить ещё нечего */
+const DICT = require('./src/lang.js');
+const T = s => {
+  let l = 'ru';
+  try { l = (store && store.all && store.all.lang) || 'ru'; } catch { /* store ещё не заведён */ }
+  return (l !== 'ru' && DICT[l] && DICT[l][s]) || s;
+};
+
 /* ---------- лог и падения ---------- */
 
 function fatal(where, err, loud = true) {
@@ -27,7 +37,7 @@ function fatal(where, err, loud = true) {
     fs.appendFileSync(path.join(app.getPath('userData'), 'error.log'),
       new Date().toISOString() + ' [' + where + '] ' + msg + '\n');
   } catch {}
-  if (loud && app.isReady()) { try { dialog.showErrorBox('Вслух — ошибка', msg); } catch {} }
+  if (loud && app.isReady()) { try { dialog.showErrorBox(T('Вслух — ошибка'), msg); } catch {} }
 }
 process.on('uncaughtException', e => fatal('uncaught', e));
 process.on('unhandledRejection', e => fatal('rejection', e, false));
@@ -295,7 +305,7 @@ function wireIpc() {
 
   ipcMain.handle('lib:pickFolder', async () => {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Папка с музыкой',
+      title: T('Папка с музыкой'),
       properties: ['openDirectory', 'multiSelections']
     });
     if (r.canceled || !r.filePaths.length) return store.all.folders;
@@ -314,7 +324,7 @@ function wireIpc() {
     const folders = store.all.folders;
     if (!folders.length) return [];
     artStop = true;
-    send('lib:progress', { done: 0, total: 0, title: 'ищу файлы…' });
+    send('lib:progress', { done: 0, total: 0, title: T('ищу файлы…') });
     const tracks = await library.scan(folders, p => send('lib:progress', p));
     send('lib:progress', null);
     setTimeout(startArtwork, 600);
@@ -338,7 +348,7 @@ function wireIpc() {
 
   ipcMain.handle('video:pick', async () => {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Папка с фоновыми видео',
+      title: T('Папка с фоновыми видео'),
       properties: ['openDirectory']
     });
     if (r.canceled || !r.filePaths.length) return store.all.videoFolder;
@@ -358,9 +368,9 @@ function wireIpc() {
     const slot = kind + (key ? '-' + String(key).replace(/[^a-z0-9_-]/gi, '') : '');
 
     const r = await dialog.showOpenDialog(win, {
-      title: 'Картинка для профиля',
+      title: T('Картинка для профиля'),
       properties: ['openFile'],
-      filters: [{ name: 'Картинки', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }]
+      filters: [{ name: T('Картинки'), extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }]
     });
     if (r.canceled || !r.filePaths.length) {
       return key ? '' : (store.all.profile || {})[kind] || '';
@@ -482,7 +492,7 @@ function wireIpc() {
           title = j.title || ''; artist = j.author_name || ''; cover = j.thumbnail_url || '';
         }
       } catch {}
-      return { src: 'yt', id: yt[1], title: title || 'Трек с YouTube', artist, cover,
+      return { src: 'yt', id: yt[1], title: title || T('Трек с YouTube'), artist, cover,
                duration: 0, url: 'https://www.youtube.com/watch?v=' + yt[1] };
     }
 
@@ -496,7 +506,7 @@ function wireIpc() {
           title = j.title || ''; artist = j.author_name || ''; cover = j.thumbnail_url || '';
         }
       } catch {}
-      return { src: 'sc', id: u, title: title || 'Трек с SoundCloud', artist, cover, duration: 0, url: u };
+      return { src: 'sc', id: u, title: title || T('Трек с SoundCloud'), artist, cover, duration: 0, url: u };
     }
 
     return null;
@@ -572,7 +582,7 @@ function wireIpc() {
 
   ipcMain.handle('dl:pickFolder', async () => {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Куда складывать скачанное',
+      title: T('Куда складывать скачанное'),
       properties: ['openDirectory', 'createDirectory']
     });
     if (r.canceled || !r.filePaths.length) return store.all.downloadFolder || '';
@@ -614,7 +624,7 @@ function wireIpc() {
     const dir = (pic ? app.getPath('pictures') : app.getPath('videos')) || app.getPath('home');
 
     const r = await dialog.showSaveDialog(win, {
-      title: pic ? 'Куда сохранить карточку' : 'Куда сохранить клип',
+      title: pic ? T('Куда сохранить карточку') : T('Куда сохранить клип'),
       defaultPath: path.join(dir, name),
       filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
     });
@@ -633,9 +643,9 @@ function wireIpc() {
   ipcMain.handle('backup:export', async () => {
     const name = 'vsluh-' + new Date().toISOString().slice(0, 10) + '.json';
     const r = await dialog.showSaveDialog(win, {
-      title: 'Куда сохранить бэкап',
+      title: T('Куда сохранить бэкап'),
       defaultPath: path.join(app.getPath('documents') || app.getPath('home'), name),
-      filters: [{ name: 'Бэкап Вслух', extensions: ['json'] }]
+      filters: [{ name: T('Бэкап Вслух'), extensions: ['json'] }]
     });
     if (r.canceled || !r.filePath) return { canceled: true };
     try {
@@ -654,8 +664,8 @@ function wireIpc() {
 
   ipcMain.handle('backup:import', async () => {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Выбери файл бэкапа',
-      filters: [{ name: 'Бэкап Вслух', extensions: ['json'] }],
+      title: T('Выбери файл бэкапа'),
+      filters: [{ name: T('Бэкап Вслух'), extensions: ['json'] }],
       properties: ['openFile']
     });
     if (r.canceled || !r.filePaths.length) return { canceled: true };

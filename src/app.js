@@ -14,13 +14,18 @@ const fmt = s => {
 let toastT = null;
 function toast(msg) {
   const t = $('toast');
-  t.textContent = msg;
+  t.textContent = T(msg);
   t.classList.add('on');
   clearTimeout(toastT);
   toastT = setTimeout(() => t.classList.remove('on'), 2600);
 }
 
-const audio = $('audio');
+// две деки: пока одна доигрывает, вторая уже начинает - отсюда переход без тишины.
+// audio всегда указывает на ту, что сейчас главная; остальной плеер работает с ней
+// и про вторую деку ничего не знает
+const DECKS = [$('audio'), $('audio2')];
+let audio = DECKS[0];
+const other = () => (DECKS[0] === audio ? DECKS[1] : DECKS[0]);
 
 /* ===================== состояние ===================== */
 const S = {
@@ -38,7 +43,9 @@ const S = {
 };
 
 /* ===================== звук ===================== */
-let actx = null, analyser = null, srcNode = null, freq = null, timeData = null;
+let actx = null, analyser = null, freq = null, timeData = null;
+let mix = null;                  // сюда сходятся обе деки, дальше эквалайзер
+const WIRE = new Map();          // дека -> её узлы
 
 // эквалайзер: 10 полос, усиление в дБ
 const EQ_FREQ = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -63,17 +70,38 @@ function applyEq() {
   });
 }
 
+// у каждой деки свои две ручки: одна ведёт переход, вторая выравнивает громкость.
+// счётчик громкости висит отдельной веткой до эквалайзера - иначе поднятый бас
+// читался бы как "трек громкий" и его бы приглушало
+function wireDeck(d) {
+  const src = actx.createMediaElementSource(d);
+  const xf = actx.createGain();
+  const lvl = actx.createGain();
+  xf.gain.value = d === audio ? 1 : 0;
+  lvl.gain.value = 1;
+  src.connect(xf); xf.connect(lvl); lvl.connect(mix);
+
+  const meter = actx.createAnalyser();
+  meter.fftSize = 1024;
+  src.connect(meter);
+
+  WIRE.set(d, { xf, lvl, meter, buf: new Uint8Array(meter.fftSize), loud: 0 });
+}
+
 function initAudio() {
   if (actx) return;
   try {
     actx = new AudioContext();
-    srcNode = actx.createMediaElementSource(audio);
     analyser = actx.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.8;
     analyser.minDecibels = -72;
     analyser.maxDecibels = -18;
-    // источник -> 10 фильтров -> анализатор -> выход
+
+    mix = actx.createGain();
+    for (const d of DECKS) wireDeck(d);
+
+    // обе деки -> 10 фильтров -> анализатор -> выход
     eqNodes = EQ_FREQ.map(f => {
       const n = actx.createBiquadFilter();
       n.type = 'peaking';
@@ -82,7 +110,7 @@ function initAudio() {
       n.gain.value = 0;
       return n;
     });
-    let node = srcNode;
+    let node = mix;
     for (const n of eqNodes) { node.connect(n); node = n; }
     node.connect(analyser);
     analyser.connect(actx.destination);
@@ -94,6 +122,126 @@ function initAudio() {
     console.warn('web audio', e);
   }
 }
+
+/* ===================== переход между треками ===================== */
+// XF.from - дека, которая сейчас уходит. пока она есть, идёт переход
+const XF = { from: null, timer: null };
+const xfSec = () => Math.max(0, Number(S.cfg.xfade || 0));
+
+const pauseAll = () => { for (const d of DECKS) { try { d.pause(); } catch {} } };
+
+function loadDeck(d, track) {
+  d.__track = track;
+  d.__counted = false;
+  d.src = window.api.file(track.path);
+  d.volume = d.muted ? 0 : S.cfg.volume;
+  d.playbackRate = S.cfg.rate || 1;
+  applyPitch();
+  const w = WIRE.get(d);
+  if (w) { w.loud = 0; w.lvl.gain.value = 1; }   // громкость нового трека меряем заново
+}
+
+function stopDeck(d) {
+  try { d.pause(); } catch {}
+  d.removeAttribute('src');
+  try { d.load(); } catch {}
+  const w = WIRE.get(d);
+  if (w) w.xf.gain.value = 0;
+}
+
+// равная мощность: на середине перехода суммарная громкость не проваливается,
+// как это слышно у простого линейного сведения
+function ramp(d, up, sec) {
+  const w = WIRE.get(d);
+  if (!w || !actx) return;
+  const g = w.xf.gain, t = actx.currentTime;
+  const from = g.value, to = up ? 1 : 0;
+  g.cancelScheduledValues(t);
+  const n = 48, a = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i / (n - 1);
+    a[i] = from + (to - from) * (up ? Math.sin(x * Math.PI / 2) : 1 - Math.cos(x * Math.PI / 2));
+  }
+  try { g.setValueCurveAtTime(a, t, Math.max(.05, sec)); }
+  catch { g.value = to; }
+}
+
+// доводим начатый переход до конца. hard - оборвать немедленно
+function finishXf() {
+  clearTimeout(XF.timer);
+  XF.timer = null;
+  const d = XF.from;
+  XF.from = null;
+  if (!d) return;
+  // засчитываем прослушивание, только если трек и правда доиграл почти до конца,
+  // а не был переключён руками на десятой секунде
+  const left = (d.duration || 0) - (d.currentTime || 0);
+  if (!d.__counted && d.duration && left <= xfSec() + 1.5) {
+    d.__counted = true;
+    countPlay(d.__track);
+  }
+  stopDeck(d);
+}
+
+// следующий индекс в порядке очереди - та же логика, что и у step(1),
+// но без побочных действий: надо знать заранее, есть ли куда переходить
+function nextPos() {
+  if (!S.order.length) return -1;
+  let p = S.pos + 1;
+  if (p >= S.order.length) {
+    if (S.cfg.repeat !== 'all') return -1;
+    p = 0;
+  }
+  return p;
+}
+
+// вызывается на каждом timeupdate активной деки
+function xfTick() {
+  const sec = xfSec();
+  if (!sec || XF.from || !actx) return;
+  if (S.source !== 'local' || !S.track || audio.paused) return;
+  if (S.cfg.repeat === 'one') return;        // повтор одного: переходить некуда
+  if (SLEEP.mode === 'track') return;        // засыпаем в конце трека - не начинаем следующий
+  const d = audio.duration, c = audio.currentTime;
+  if (!isFinite(d) || d <= 0 || d - c > sec) return;
+  if (d < sec * 2) return;                   // трек короче двух переходов - не мельчим
+
+  waveTopUp();
+  const p = nextPos();
+  if (p < 0) return;
+  const t = S.tracks.find(x => x.id === S.queue[S.order[p]]);
+  if (!t) return;
+  S.pos = p;
+  play(t, false, true);
+}
+
+/* ---- выравнивание громкости ----
+   считаем не мгновенную громкость, а спадающий пик: он быстро подхватывает
+   громкое место и медленно забывает его. поэтому тихий проигрыш не задирается,
+   а трек целиком подводится к общему уровню. правка ограничена вдвое в обе
+   стороны - дальше начинается уже не выравнивание, а порча записи */
+const LVL_AIM = 0.14;
+
+function levelTick() {
+  if (!actx || !S.cfg.level) {
+    if (actx) for (const w of WIRE.values()) w.lvl.gain.setTargetAtTime(1, actx.currentTime, .5);
+    return;
+  }
+  for (const d of DECKS) {
+    const w = WIRE.get(d);
+    if (!w || d.paused || !d.currentSrc) continue;
+    w.meter.getByteTimeDomainData(w.buf);
+    let sum = 0;
+    for (let i = 0; i < w.buf.length; i++) { const v = (w.buf[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / w.buf.length);
+    if (rms < 0.004) continue;               // тишина: по ней о громкости трека не судят
+    w.loud = Math.max(rms, w.loud * 0.995);
+    if (w.loud < 0.02) continue;             // ещё нечего мерить
+    const want = Math.max(0.5, Math.min(2, LVL_AIM / w.loud));
+    w.lvl.gain.setTargetAtTime(want, actx.currentTime, 1.2);
+  }
+}
+setInterval(levelTick, 200);
 
 /* ===================== акцент из обложки ===================== */
 const accentCache = new Map();
@@ -181,24 +329,44 @@ function setQueue(ids) {
   buildOrder();
 }
 
-function play(track, fromQueue) {
+// soft=true просит плавный переход - так зовёт xfTick в конце трека.
+// руками переключённый трек уходит плавно, только если это разрешено в настройках
+function play(track, fromQueue, soft) {
   if (!track) return;
   if (S.source !== 'local') stopStream();
   initAudio();
+
+  const sec = xfSec();
+  const soften = sec > 0 && !!actx && !audio.paused && !!audio.currentSrc &&
+                 (soft === true || !!S.cfg.xfadeManual);
+
+  const boom = e => { if (e.name !== 'AbortError') toast('Не получилось открыть файл'); };
+
+  if (soften) {
+    const from = audio;
+    finishXf();                 // если предыдущий переход ещё шёл - закрываем его
+    const to = other();
+    audio = to;                 // дальше весь плеер работает уже с новой декой
+    loadDeck(to, track);
+    to.play().catch(boom);
+    ramp(to, true, sec);
+    ramp(from, false, sec);
+    XF.from = from;
+    XF.timer = setTimeout(finishXf, sec * 1000 + 150);
+  } else {
+    finishXf();
+    loadDeck(audio, track);
+    const w = WIRE.get(audio);
+    if (w) w.xf.gain.value = 1;
+    audio.play().catch(boom);
+  }
+
   S.track = track;
 
   if (fromQueue !== false) {
     const qi = S.queue.indexOf(track.id);
     S.pos = S.order.indexOf(qi);
   }
-
-  audio.src = window.api.file(track.path);
-  audio.volume = S.cfg.volume;
-  audio.playbackRate = S.cfg.rate || 1;
-  applyPitch();
-  audio.play().catch(e => {
-    if (e.name !== 'AbortError') toast('Не получилось открыть файл');
-  });
 
   paintTrack(track);
   loadLyrics(track);
@@ -261,7 +429,7 @@ function step(dir) {
 
   let p = S.pos + dir;
   if (p >= S.order.length) {
-    if (S.cfg.repeat !== 'all') { audio.pause(); return; }
+    if (S.cfg.repeat !== 'all') { pauseAll(); finishXf(); return; }
     p = 0;
   }
   if (p < 0) p = S.cfg.repeat === 'all' ? S.order.length - 1 : 0;
@@ -280,13 +448,16 @@ function toggle() {
   }
   initAudio();
   if (actx && actx.state === 'suspended') actx.resume();
-  audio.paused ? audio.play().catch(() => {}) : audio.pause();
+  if (audio.paused) {
+    // если пауза застала переход - поднимаем обе деки, иначе уходящая отвалится
+    for (const d of DECKS) if (d.currentSrc && (d === audio || XF.from === d)) d.play().catch(() => {});
+  } else pauseAll();
 }
 
 function setVolume(v, save = true) {
   v = Math.max(0, Math.min(1, v));
   S.cfg.volume = v;
-  audio.volume = audio.muted ? 0 : v;
+  for (const d of DECKS) d.volume = d.muted ? 0 : v;
   streamVolume(audio.muted ? 0 : v);
   $('vol-fill').style.width = (v * 100) + '%';
   $('vol-knob').style.left = (v * 100) + '%';
@@ -329,24 +500,37 @@ function paintProgress() {
   tickLyrics();
 }
 
-audio.addEventListener('play', () => {
-  if (actx && actx.state === 'suspended') actx.resume();
-  paintPlay();
-});
-audio.addEventListener('pause', paintPlay);
-audio.addEventListener('ended', () => {
-  countPlay(S.track);
-  if (SLEEP.mode === 'track') { sleepNow(); return; }
-  step(1);
-});
-audio.addEventListener('error', () => {
-  if (audio.src) { toast('Файл не читается, пропускаю'); setTimeout(() => step(1), 400); }
-});
-audio.addEventListener('loadedmetadata', () => {
-  $('t-dur').textContent = fmt(audio.duration);
-  if (S.track && !S.track.duration) S.track.duration = Math.round(audio.duration);
-});
-audio.addEventListener('timeupdate', () => { if (S.source === 'local') paintProgress(); });
+// слушаем обе деки, но откликаемся только за главную: уходящая во время
+// перехода тоже досылает свои события, и без этой проверки трек улетал бы через один
+for (const d of DECKS) {
+  d.addEventListener('play', () => {
+    if (actx && actx.state === 'suspended') actx.resume();
+    if (sqPlaying) stopPreview();
+    if (d === audio) paintPlay();
+  });
+  d.addEventListener('pause', () => { if (d === audio) paintPlay(); });
+  d.addEventListener('ended', () => {
+    if (d !== audio) { finishXf(); return; }   // доиграла уходящая - просто убираем её
+    countPlay(S.track);
+    if (SLEEP.mode === 'track') { sleepNow(); return; }
+    step(1);
+  });
+  d.addEventListener('error', () => {
+    if (d !== audio || !d.currentSrc) return;
+    toast('Файл не читается, пропускаю');
+    setTimeout(() => step(1), 400);
+  });
+  d.addEventListener('loadedmetadata', () => {
+    if (d !== audio) return;
+    $('t-dur').textContent = fmt(d.duration);
+    if (S.track && !S.track.duration) S.track.duration = Math.round(d.duration);
+  });
+  d.addEventListener('timeupdate', () => {
+    if (d !== audio || S.source !== 'local') return;
+    paintProgress();
+    xfTick();
+  });
+}
 setInterval(() => {
   if (!S.track || audio.paused) return;
   report();
@@ -750,7 +934,7 @@ function startWave(mode) {
 
   renderChips();
   renderPlHead();
-  toast('Моя волна: ' + WAVE_NAMES[w.mode].toLowerCase());
+  toast(T('Моя волна: ') + T(WAVE_NAMES[w.mode]).toLowerCase());
 }
 
 function stopWave() {
@@ -800,8 +984,8 @@ function renderPlHead() {
     box.style.backgroundImage = '';
     box.classList.remove('has');
     box.firstElementChild.textContent = '✦';
-    $('pl-name').textContent = 'Моя волна';
-    $('pl-sub').textContent = 'собрана из твоей библиотеки · ' + (S.order.length - S.pos)
+    $('pl-name').textContent = T('Моя волна');
+    $('pl-sub').textContent = T('собрана из твоей библиотеки · ') + (S.order.length - S.pos)
       + ' впереди';
     for (const b of $('wave-mode').querySelectorAll('button')) {
       b.classList.toggle('on', b.dataset.v === (w.mode || 'usual'));
@@ -816,7 +1000,7 @@ function renderPlHead() {
 
   $('pl-name').textContent = p.name;
   const n = p.tracks.length;
-  $('pl-sub').textContent = n + ' ' + plural(n, 'трек', 'трека', 'треков')
+  $('pl-sub').textContent = n + ' ' + plural(n, T('трек'), T('трека'), T('треков'))
     + (p.cover ? ' · своя обложка' : c ? ' · обложка от первого трека' : '');
 }
 
@@ -929,7 +1113,7 @@ function renderChips() {
 
   const mk = (id, label, count) => {
     const b = el('button', 'chip' + (tab === id ? ' on' : ''));
-    b.append(document.createTextNode(label));
+    b.append(document.createTextNode(T(label)));
     if (count != null) { const e = el('em'); e.textContent = count; b.appendChild(e); }
     b.onclick = () => {
       S.cfg.libTab = id;
@@ -945,8 +1129,8 @@ function renderChips() {
 
   // волна не вкладка, а действие: жмёшь - и она начинает играть
   const wv = el('button', 'chip chip-wave' + ((S.cfg.wave || {}).on ? ' on' : ''));
-  wv.append(document.createTextNode('✦ Моя волна'));
-  wv.title = 'бесконечная подборка из твоей библиотеки';
+  wv.append(document.createTextNode(T('✦ Моя волна')));
+  wv.title = T('бесконечная подборка из твоей библиотеки');
   wv.onclick = () => startWave();
   box.appendChild(wv);
 
@@ -955,7 +1139,7 @@ function renderChips() {
 
   for (const p of S.cfg.playlists || []) {
     const b = mk(p.id, p.name, p.tracks.length);
-    b.title = 'двойной клик — переименовать';
+    b.title = T('двойной клик — переименовать');
     const th = plCover(p);
     if (th) {
       const i = el('div', 'chip-ava');
@@ -969,13 +1153,13 @@ function renderChips() {
     });
     const x = el('button', 'chip-x');
     x.textContent = '✕';
-    x.title = 'удалить плейлист';
+    x.title = T('удалить плейлист');
     x.onclick = ev => { ev.stopPropagation(); deletePlaylist(p); };
     b.appendChild(x);
   }
 
   const add = el('button', 'chip chip-add');
-  add.textContent = '+ плейлист';
+  add.textContent = T('+ плейлист');
   add.onclick = () => chipInput(add, '', v => {
     const p = newPlaylist(v);
     S.cfg.libTab = p.id;
@@ -991,7 +1175,7 @@ function chipInput(node, value, done) {
   const inp = el('input', 'chip');
   inp.value = value || '';
   inp.style.width = '150px';
-  inp.placeholder = 'название';
+  inp.placeholder = T('название');
   node.replaceWith(inp);
   inp.focus();
   inp.select();
@@ -1030,12 +1214,12 @@ function openPlMenu(btn, t) {
 
   const nb = el('button');
   const ni = el('i'); ni.textContent = '+';
-  const ns = el('span'); ns.textContent = 'Новый плейлист';
+  const ns = el('span'); ns.textContent = T('Новый плейлист');
   nb.append(ni, ns);
   nb.onclick = () => {
     show(m, false);
     const p = newPlaylist('Плейлист ' + ((S.cfg.playlists || []).length + 1), t.id);
-    toast(`Создал «${p.name}» и добавил трек`);
+    toast(TF`Создал «${p.name}» и добавил трек`);
     renderRows();
   };
   m.append(nb);
@@ -1060,9 +1244,9 @@ function renderRows() {
   $('lib-pad').style.height = (list.length * ROW_H + 12) + 'px';
   $('lib-info').textContent =
     !S.tracks.length ? ''
-    : S.filter ? `${list.length} из ${S.tracks.length}`
+    : S.filter ? TF`${list.length} из ${S.tracks.length}`
     : !list.length ? (S.cfg.libTab === 'fav' ? 'любимых пока нет' : 'в этом плейлисте пусто')
-    : `${list.length} треков`;
+    : TF`${list.length} треков`;
 
   const top = scroll.scrollTop;
   const from = Math.max(0, Math.floor(top / ROW_H) - 6);
@@ -1162,10 +1346,7 @@ async function loadLibrary() {
     if (last) {
       S.track = last;
       S.pos = S.order.indexOf(S.queue.indexOf(last.id));
-      audio.src = window.api.file(last.path);
-      audio.volume = S.cfg.volume;
-      audio.playbackRate = S.cfg.rate || 1;
-      applyPitch();
+      loadDeck(audio, last);
       paintTrack(last);
       loadLyrics(last);
       renderRows();
@@ -1182,7 +1363,7 @@ async function scan() {
   $('rescan').disabled = false;
   setQueue(visibleTracks().map(x => x.id));
   renderRows();
-  toast(t.length ? `Нашёл ${t.length} треков` : 'В этих папках музыки нет');
+  toast(t.length ? TF`Нашёл ${t.length} треков` : 'В этих папках музыки нет');
 }
 
 window.api.lib.onArtwork(({ id, cover }) => {
@@ -1192,13 +1373,13 @@ window.api.lib.onArtwork(({ id, cover }) => {
   renderRows();
   if (S.track?.id === id) paintTrack(t);
 });
-window.api.lib.onArtworkDone(n => { if (n) toast(`Нашёл обложек: ${n}`); });
+window.api.lib.onArtworkDone(n => { if (n) toast(TF`Нашёл обложек: ${n}`); });
 
 window.api.lib.onProgress(p => {
   const box = $('scan');
   if (!p) { box.hidden = true; return; }
   box.hidden = false;
-  $('scan-txt').textContent = p.total ? `${p.done} из ${p.total} · ${p.title}` : p.title;
+  $('scan-txt').textContent = p.total ? TF`${p.done} из ${p.total} · ${p.title}` : p.title;
   $('scan-fill').style.width = p.total ? (p.done / p.total * 100) + '%' : '0%';
 });
 
@@ -1255,7 +1436,8 @@ async function streamPlay(item, queue) {
   if (!item) return;
   if (queue) { STREAM.queue = queue; STREAM.at = queue.findIndex(x => x.id === item.id); }
 
-  audio.pause();
+  pauseAll();
+  finishXf();
   stopPreview();
   S.source = item.src;
   STREAM.kind = item.src;
@@ -1449,7 +1631,7 @@ function renderSelBar() {
   if (n) {
     const word = n % 10 === 1 && n % 100 !== 11 ? 'трек'
                : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'трека' : 'треков';
-    $('sq-sel-n').textContent = `Выбрано ${n} ${word}`;
+    $('sq-sel-n').textContent = TF`Выбрано ${n} ${word}`;
   }
 }
 
@@ -1484,7 +1666,7 @@ function renderSearch() {
     let pick = null;
     if (canGrab(r)) {
       pick = el('button', 'sq-pick');
-      pick.title = 'отметить для скачивания';
+      pick.title = T('отметить для скачивания');
       pick.innerHTML = TICK;
       pick.onclick = e => { e.stopPropagation(); togglePick(r); };
       if (sqSel.has(r.id)) { pick.classList.add('on'); c.classList.add('picked'); }
@@ -1497,19 +1679,19 @@ function renderSearch() {
 
     const m = el('div', 'sq-m');
     const t = el('div', 'sq-t'); t.textContent = r.title;
-    const a = el('div', 'sq-a'); a.textContent = r.artist || 'неизвестный исполнитель';
+    const a = el('div', 'sq-a'); a.textContent = r.artist || T('неизвестный исполнитель');
     const s = el('div', 'sq-s');
     const bits = [r.album, r.year || null, r.duration ? fmt(r.duration) : null].filter(Boolean);
     s.append(document.createTextNode(bits.join(' · ')));
-    if (haveLocally(r)) { const h = el('span', 'sq-have'); h.textContent = 'есть у тебя'; s.appendChild(h); }
+    if (haveLocally(r)) { const h = el('span', 'sq-have'); h.textContent = T('есть у тебя'); s.appendChild(h); }
     m.append(t, a, s);
 
     const play = el('button', 'cbtn sq-prev');
     if (stream) {
-      play.title = 'слушать целиком';
+      play.title = T('слушать целиком');
       play.onclick = () => streamPlay(r, sqResults.filter(x => x.src === r.src));
     } else {
-      play.title = r.preview ? 'послушать 30 секунд' : 'отрывка нет';
+      play.title = r.preview ? T('послушать 30 секунд') : T('отрывка нет');
       play.disabled = !r.preview;
       play.onclick = () => playPreview(r);
     }
@@ -1517,7 +1699,7 @@ function renderSearch() {
     let dl = null;
     if (canGrab(r)) {
       dl = el('button', 'cbtn sq-prev sq-dl');
-      dl.title = 'скачать к себе';
+      dl.title = T('скачать к себе');
       dl.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V3zM4 19h16v2H4z"/></svg>';
       dl.onclick = () => downloadTrack(r);
     }
@@ -1530,7 +1712,7 @@ function renderSearch() {
       const link = el('a');
       link.textContent = name;
       link.href = '#';
-      link.title = 'открыть в браузере';
+      link.title = T('открыть в браузере');
       link.onclick = e => { e.preventDefault(); window.api.openExternal(url); };
       go.appendChild(link);
     }
@@ -1564,7 +1746,7 @@ async function downloadSelected() {
   sqSel.clear();
   renderSearch();
   toast(res.added
-    ? `В очереди ${res.added}` + (res.skipped ? `, пропущено ${res.skipped}` : '')
+    ? TF`В очереди ${res.added}` + (res.skipped ? TF`, пропущено ${res.skipped}` : '')
     : 'Всё это уже в очереди');
 }
 
@@ -1596,12 +1778,12 @@ function renderDlq(st) {
   box.classList.toggle('work', !!st.busy);
   box.classList.toggle('fold', DLQ.folded);
   $('dlq-pause').classList.toggle('on', DLQ.paused);
-  $('dlq-pause').title = DLQ.paused ? 'продолжить' : 'пауза';
+  $('dlq-pause').title = DLQ.paused ? T('продолжить') : T('пауза');
 
   const left = st.wait + (st.busy ? 1 : 0);
-  $('dlq-title').textContent = DLQ.paused ? 'Очередь на паузе'
-    : left ? `Качаю — осталось ${left}`
-    : st.failed ? `Готово, ${st.failed} с ошибкой`
+  $('dlq-title').textContent = DLQ.paused ? T('Очередь на паузе')
+    : left ? TF`Качаю — осталось ${left}`
+    : st.failed ? TF`Готово, ${st.failed} с ошибкой`
     : 'Всё скачано';
 
   const body = $('dlq-body');
@@ -1651,7 +1833,7 @@ function renderDlq(st) {
 
     if (it.state === 'wait' || it.state === 'go') {
       const x = el('button', 'dlq-x');
-      x.title = 'убрать из очереди';
+      x.title = T('убрать из очереди');
       x.innerHTML = QIC.cancel;
       x.onclick = () => window.api.dl.cancel(it.key).then(renderDlq);
       row.appendChild(x);
@@ -1699,7 +1881,7 @@ function paintPreview() {
 function playPreview(r) {
   if (sqPlaying === r.id) { stopPreview(); return; }
   if (!r.preview) return;
-  audio.pause();                       // отрывок и основной плеер вместе не играют
+  pauseAll();                          // отрывок и основной плеер вместе не играют
   prev.src = r.preview;
   prev.volume = audio.muted ? 0 : S.cfg.volume;
   prev.play().catch(() => toast('Отрывок не открылся'));
@@ -1715,7 +1897,6 @@ function stopPreview() {
 }
 
 prev.addEventListener('ended', () => { sqPlaying = null; paintPreview(); });
-audio.addEventListener('play', () => { if (sqPlaying) stopPreview(); });
 
 // ссылка на плейлист, альбом или сет - но не на конкретное видео из плейлиста
 function isPlaylistUrl(u) {
@@ -1725,7 +1906,7 @@ function isPlaylistUrl(u) {
 }
 
 async function importPlaylist(url) {
-  $('sq-info').textContent = 'читаю плейлист…';
+  $('sq-info').textContent = T('читаю плейлист…');
   const r = await window.api.dl.playlist(url);
 
   if (r.error) {
@@ -1739,7 +1920,7 @@ async function importPlaylist(url) {
 
   sqResults = r.items || [];
   if (!sqResults.length) {
-    $('sq-info').textContent = 'в плейлисте ничего не нашлось';
+    $('sq-info').textContent = T('в плейлисте ничего не нашлось');
     renderSearch();
     return;
   }
@@ -1748,13 +1929,13 @@ async function importPlaylist(url) {
   sqSel.clear();
   for (const it of sqResults) if (canGrab(it)) sqSel.add(it.id);
 
-  $('sq-info').textContent = (r.name ? '«' + r.name + '» — ' : '') + `${sqResults.length} треков`;
+  $('sq-info').textContent = (r.name ? '«' + r.name + '» — ' : '') + TF`${sqResults.length} треков`;
   renderSearch();
   if (!sqSel.size) toast('Все треки из плейлиста уже есть у тебя');
 }
 
 async function runSearch(q) {
-  $('sq-info').textContent = 'ищу…';
+  $('sq-info').textContent = T('ищу…');
 
   // ссылка на плейлист - разбираем его целиком
   if (/^https?:\/\//i.test(q) && isPlaylistUrl(q)) return importPlaylist(q);
@@ -1762,7 +1943,7 @@ async function runSearch(q) {
   // вставленная ссылка - сразу играем, ничего не ищем
   if (/^https?:\/\//i.test(q)) {
     const it = await window.api.stream.resolve(q);
-    if (!it) { $('sq-info').textContent = 'такую ссылку не понимаю'; sqResults = []; renderSearch(); return; }
+    if (!it) { $('sq-info').textContent = T('такую ссылку не понимаю'); sqResults = []; renderSearch(); return; }
     sqResults = [it];
     $('sq-info').textContent = '';
     renderSearch();
@@ -1775,7 +1956,7 @@ async function runSearch(q) {
     if ($('sq').value.trim() !== q) return;
     if (r.error === 'nokey') {
       sqResults = [];
-      $('sq-info').textContent = 'нет ни yt-dlp, ни ключа — смотри Настройки → Стриминг';
+      $('sq-info').textContent = T('нет ни yt-dlp, ни ключа — смотри Настройки → Стриминг');
       renderSearch();
       return;
     }
@@ -1792,7 +1973,7 @@ async function runSearch(q) {
     sqResults = res || [];
   }
 
-  $('sq-info').textContent = sqResults.length ? `${sqResults.length} результатов` : 'ничего не нашлось';
+  $('sq-info').textContent = sqResults.length ? TF`${sqResults.length} результатов` : T('ничего не нашлось');
   renderSearch();
 }
 
@@ -1853,7 +2034,7 @@ function renderSys() {
     m.innerHTML = `<div class="sys-app">${s.playing ? '<em></em>' : ''}<span></span></div>
       <div class="sys-t"></div><div class="sys-a"></div>
       <div class="sys-p"><i></i></div><div class="sys-time"></div>`;
-    m.querySelector('.sys-app span').textContent = s.app + (s.playing ? ' · играет' : ' · пауза');
+    m.querySelector('.sys-app span').textContent = s.app + (s.playing ? T(' · играет') : T(' · пауза'));
     m.querySelector('.sys-t').textContent = s.title;
     m.querySelector('.sys-a').textContent = s.artist || '';
     const pr = s.duration ? Math.min(100, s.position / s.duration * 100) : 0;
@@ -1907,9 +2088,9 @@ function renderFonts(boxId, get, set) {
     for (const f of FONTS) {
       const b = el('button', 'fontb' + (get() === f.id ? ' on' : ''));
       b.style.fontFamily = f.css;
-      b.title = f.name;
-      const n = el('b'); n.textContent = f.name;
-      const s = el('i'); s.textContent = 'Ёжик Aa 123';
+      b.title = T(f.name);
+      const n = el('b'); n.textContent = T(f.name);
+      const s = el('i'); s.textContent = T('Ёжик Aa 123');
       b.append(n, s);
       b.onclick = () => { set(f.id); paint(); };
       box.appendChild(b);
@@ -2138,6 +2319,9 @@ function applyTheme() {
   root.setProperty('--bg-dim', ((th.bgDim ?? 42) / 100).toFixed(2));
   if (th.beat === false) root.setProperty('--beat', '1');
 
+  // перекрас интерфейса под акцент: 0 - нейтральный серый, 1 - цвет везде
+  root.setProperty('--tint', String(TINTS[th.tint || 'off'] ?? 0));
+
   root.setProperty('--ui-size', (th.uiSize || 14) + 'px');
   // ноль значит "не вмешиваться": начертание останется тем, что задала тема
   if (th.uiWeight) root.setProperty('--ui-weight', String(th.uiWeight));
@@ -2205,7 +2389,7 @@ function applyVideoBg() {
       VID.list = [];
       v.onended = null;
       v.onerror = () => urlState('ролик по этой ссылке не открылся', true);
-      v.onloadeddata = () => urlState(`ролик ${v.videoWidth}×${v.videoHeight}`);
+      v.onloadeddata = () => urlState(TF`ролик ${v.videoWidth}×${v.videoHeight}`);
       v.src = byUrl;
       v.loop = true;
       v.load();
@@ -2230,7 +2414,7 @@ function applyVideoBg() {
 function urlState(msg, bad) {
   const n = $('url-state');
   if (!n) return;
-  n.textContent = msg || '';
+  n.textContent = T(msg || '');
   n.classList.toggle('bad', !!bad);
 }
 
@@ -2245,7 +2429,7 @@ function checkBgUrl() {
 
   urlState('проверяю…');
   const im = new Image();
-  im.onload = () => urlState(`картинка ${im.naturalWidth}×${im.naturalHeight}`);
+  im.onload = () => urlState(TF`картинка ${im.naturalWidth}×${im.naturalHeight}`);
   im.onerror = () => urlState('картинка по этой ссылке не открылась', true);
   im.src = u;
 }
@@ -2257,7 +2441,7 @@ async function loadVideoList() {
     [VID.list[i], VID.list[j]] = [VID.list[j], VID.list[i]];
   }
   const c = $('vid-count');
-  if (c) c.textContent = VID.list.length ? `роликов: ${VID.list.length}` : 'в папке нет видео';
+  if (c) c.textContent = VID.list.length ? TF`роликов: ${VID.list.length}` : T('в папке нет видео');
   return VID.list;
 }
 
@@ -2308,8 +2492,8 @@ function renderPresets() {
     const b = el('button', 'preset' + (S.cfg.theme?.preset === p.id ? ' on' : ''));
     const sw = el('div', 'preset-sw');
     for (const c of p.sw) { const i = el('i'); i.style.background = c; sw.appendChild(i); }
-    const n = el('div', 'preset-n'); n.textContent = p.name;
-    const h = el('div', 'preset-h'); h.textContent = p.hint;
+    const n = el('div', 'preset-n'); n.textContent = T(p.name);
+    const h = el('div', 'preset-h'); h.textContent = T(p.hint);
     b.append(sw, n, h);
     b.onclick = () => applyPreset(p);
     box.appendChild(b);
@@ -2417,12 +2601,12 @@ function renderProfiles() {
 
     const n = el('button', 'prof-n');
     n.textContent = p.name;
-    n.title = 'применить';
+    n.title = T('применить');
     n.onclick = () => applyProfile(p);
 
     const ren = el('button', 'prof-x');
     ren.textContent = '✎';
-    ren.title = 'переименовать';
+    ren.title = T('переименовать');
     ren.onclick = () => nameInput(chip, p.name, v => {
       const nn = (v || '').trim().slice(0, 40);
       if (nn) { p.name = nn; saveProfiles(); }
@@ -2431,7 +2615,7 @@ function renderProfiles() {
 
     const x = el('button', 'prof-x');
     x.textContent = '✕';
-    x.title = 'удалить профиль';
+    x.title = T('удалить профиль');
     x.onclick = () => dropProfile(p);
 
     chip.append(sw, n, ren, x);
@@ -2440,12 +2624,12 @@ function renderProfiles() {
 
   if (!profiles().length) {
     const e = el('span', 'prof-empty');
-    e.textContent = 'пока ни одного — настрой вид и сохрани';
+    e.textContent = T('пока ни одного — настрой вид и сохрани');
     box.appendChild(e);
   }
 
   const add = el('button', 'prof-add');
-  add.textContent = '+ сохранить текущее';
+  add.textContent = T('+ сохранить текущее');
   add.onclick = () => nameInput(add, '', v => {
     if ((v || '').trim()) addProfile(v); else renderProfiles();
   });
@@ -2456,7 +2640,7 @@ function renderProfiles() {
 function nameInput(node, value, done) {
   const inp = el('input', 'prof-inp');
   inp.value = value || '';
-  inp.placeholder = 'название профиля';
+  inp.placeholder = T('название профиля');
   node.replaceWith(inp);
   inp.focus();
   inp.select();
@@ -2483,11 +2667,6 @@ function paintThemeControls() {
 
 // цветов для ника и титула нужно больше, чем для акцента интерфейса:
 // тут это украшение, а не рабочий цвет, которым красится половина экрана
-const NICK_COLORS = [
-  '#ff5c5c', '#ff8a3d', '#ffd93d', '#8cd94f', '#4ff0c0',
-  '#57a6ff', '#9b8cff', '#d47aff', '#ff4fd8', '#e8e6ef'
-];
-
 // титулы не покупаются - часть открыта сразу, часть зарабатывается.
 // need получает подсчитанное и решает, открыт ли титул
 const TITLES = [
@@ -2550,7 +2729,7 @@ function renderProfile() {
   $('pf-bg').style.backgroundImage = bg ? `url("${bg}")` : '';
   $('pf-bg').classList.toggle('on', !!bg);
 
-  $('pf-name').textContent = (p.name || '').trim() || 'Без имени';
+  $('pf-name').textContent = (p.name || '').trim() || T('Без имени');
   $('pf-name').style.setProperty('--pf-name-c', p.color || '#fff');
 
   const tag = (p.tag || '').trim();
@@ -2593,7 +2772,7 @@ function renderProfStats() {
 
   const tiles = [
     [c.total, 'дослушано треков'],
-    [c.hours < 1 ? Math.floor((s.seconds || 0) / 60) + ' мин' : c.hours + ' ч', 'со звуком'],
+    [c.hours < 1 ? Math.floor((s.seconds || 0) / 60) + T(' мин') : c.hours + T(' ч'), 'со звуком'],
     [c.lib, 'в библиотеке'],
     [c.fav, 'в любимых'],
     [favN ? fav : '—', 'чаще всего']
@@ -2603,7 +2782,7 @@ function renderProfStats() {
   for (const [v, lab] of tiles) {
     const d = el('div', 'pf-stat');
     const b = el('b'); b.textContent = String(v); b.title = String(v);
-    const sp = el('span'); sp.textContent = lab;
+    const sp = el('span'); sp.textContent = T(lab);
     d.append(b, sp);
     box.appendChild(d);
   }
@@ -2619,12 +2798,12 @@ function renderTitles() {
   for (const t of TITLES) {
     const open = !t.need || t.need(c);
     const b = el('button', 'ttl' + (cur === t.name ? ' on' : '') + (open ? '' : ' locked'));
-    const n = el('span'); n.textContent = t.name;
+    const n = el('span'); n.textContent = T(t.name);
     b.appendChild(n);
     if (!open) {
-      const e = el('em'); e.textContent = t.hint || '';
+      const e = el('em'); e.textContent = T(t.hint || '');
       b.appendChild(e);
-      b.title = 'откроется: ' + (t.hint || '');
+      b.title = T('откроется: ') + T(t.hint || '');
     } else {
       b.onclick = () => {
         setProf({ title: cur === t.name ? '' : t.name });
@@ -2634,6 +2813,8 @@ function renderTitles() {
     box.appendChild(b);
   }
 }
+
+let repaintProfPal = null;
 
 function wireProfile() {
   renderProfile();
@@ -2673,28 +2854,17 @@ function wireProfile() {
   }
 
   const pal = (boxId, key) => {
-    const box = $(boxId);
-    const paint = () => {
-      box.textContent = '';
-      const cur = (prof()[key] || '').toLowerCase();
-
-      const auto = el('button', 'auto' + (cur ? '' : ' on'));
-      auto.title = 'как у интерфейса';
-      auto.onclick = () => { setProf({ [key]: '' }); paint(); };
-      box.appendChild(auto);
-
-      for (const c of NICK_COLORS) {
-        const b = el('button', cur === c ? 'on' : '');
-        b.style.background = c;
-        b.title = c;
-        b.onclick = () => { setProf({ [key]: c }); paint(); };
-        box.appendChild(b);
-      }
-    };
+    const paint = () => paintSwatches($(boxId), prof()[key], c => {
+      setProf({ [key]: c });
+      paint();
+    }, 'как у интерфейса');
     paint();
+    return paint;
   };
-  pal('pf-pal', 'color');
-  pal('pf-title-pal', 'titleColor');
+  const palA = pal('pf-pal', 'color');
+  const palB = pal('pf-title-pal', 'titleColor');
+  // палитры собраны кодом, смена языка должна их перерисовать
+  repaintProfPal = () => { palA(); palB(); };
 }
 
 /* ===================== настройки ===================== */
@@ -2712,7 +2882,7 @@ function renderFolders() {
   for (const f of S.cfg.folders) {
     const d = el('div', 'fold');
     const s = el('span'); s.textContent = f; s.title = f;
-    const b = el('button'); b.textContent = '✕'; b.title = 'убрать';
+    const b = el('button'); b.textContent = '✕'; b.title = T('убрать');
     b.onclick = async () => {
       S.cfg.folders = await window.api.lib.remove(f);
       renderFolders();
@@ -2728,8 +2898,8 @@ function renderKeys() {
   box.textContent = '';
   for (const k of Object.keys(KEY_LABELS)) {
     const row = el('div', 'key');
-    const s = el('span'); s.textContent = KEY_LABELS[k];
-    const kb = el('kbd'); kb.textContent = S.cfg.hotkeys[k] || 'не задано';
+    const s = el('span'); s.textContent = T(KEY_LABELS[k]);
+    const kb = el('kbd'); kb.textContent = S.cfg.hotkeys[k] || T('не задано');
     kb.onclick = () => recordKey(kb, k);
     row.append(s, kb);
     box.appendChild(row);
@@ -2738,10 +2908,10 @@ function renderKeys() {
 
 let recording = null;
 function recordKey(kb, field) {
-  if (recording) { recording.kb.classList.remove('rec'); recording.kb.textContent = S.cfg.hotkeys[recording.field] || 'не задано'; }
+  if (recording) { recording.kb.classList.remove('rec'); recording.kb.textContent = S.cfg.hotkeys[recording.field] || T('не задано'); }
   recording = { kb, field };
   kb.classList.add('rec');
-  kb.textContent = 'жми клавиши…';
+  kb.textContent = T('жми клавиши…');
 }
 
 window.addEventListener('keydown', e => {
@@ -2749,7 +2919,7 @@ window.addEventListener('keydown', e => {
   e.preventDefault();
   if (e.key === 'Escape') {
     recording.kb.classList.remove('rec');
-    recording.kb.textContent = S.cfg.hotkeys[recording.field] || 'не задано';
+    recording.kb.textContent = S.cfg.hotkeys[recording.field] || T('не задано');
     recording = null;
     return;
   }
@@ -2821,7 +2991,7 @@ function renderPrivacy() {
     ['yt-dlp → YouTube', 'поисковый запрос и адрес видео — только когда сам ищешь или качаешь',
       DL.ok ? 'ask' : 'off'],
     ['Куки браузера', S.cfg.dlCookies
-      ? `читаются из ${S.cfg.dlCookies} на этом компьютере и уходят только на YouTube`
+      ? TF`читаются из ${S.cfg.dlCookies} на этом компьютере и уходят только на YouTube`
       : 'браузер не выбран — куки не читаются',
       S.cfg.dlCookies ? 'on' : 'off'],
     ['Discord', 'название и артист играющего трека',
@@ -2838,11 +3008,11 @@ function renderPrivacy() {
   for (const [name, what, state] of rows) {
     const i = el('div', 'priv-i');
     const m = el('div', 'priv-m');
-    const n = el('div', 'priv-n'); n.textContent = name;
-    const w = el('div', 'priv-d'); w.textContent = what;
+    const n = el('div', 'priv-n'); n.textContent = T(name);
+    const w = el('div', 'priv-d'); w.textContent = T(what);
     m.append(n, w);
     const s = el('span', 'priv-s' + (state === 'on' ? ' on' : state === 'ask' ? ' ask' : ''));
-    s.textContent = label[state];
+    s.textContent = T(label[state]);
     i.append(m, s);
     box.appendChild(i);
   }
@@ -2851,8 +3021,8 @@ function renderPrivacy() {
   if (old) old.remove();
 
   const never = el('div', 'priv-never');
-  never.innerHTML = '<b>Не отправляется никогда:</b> сами аудиофайлы, пути и имена файлов, '
-    + 'список того, что лежит на диске, имя пользователя Windows, история прослушиваний и аналитика.';
+  never.innerHTML = T('<b>Не отправляется никогда:</b> сами аудиофайлы, пути и имена файлов, ')
+    + T('список того, что лежит на диске, имя пользователя Windows, история прослушиваний и аналитика.');
   box.parentElement.insertBefore(never, box.nextSibling);
 }
 
@@ -2874,7 +3044,7 @@ async function loadDlStatus() {
 function helloState(msg, bad) {
   const n = $('hello-state');
   if (!n) return;
-  n.textContent = msg || '';
+  n.textContent = T(msg || '');
   n.classList.toggle('bad', !!bad);
 }
 
@@ -2955,26 +3125,26 @@ function paintUpd() {
   const t = $('upd-text'), b = $('upd-act');
   if (!t || !b) return;
 
-  const v = UPD.version ? 'версия ' + UPD.version : '';
+  const v = UPD.version ? T('версия ') + UPD.version : '';
   const texts = {
-    dev:         v + ' — запущено из исходников, обновлять нечего',
+    dev:         v + T(' — запущено из исходников, обновлять нечего'),
     idle:        v,
-    checking:    v + ' — проверяю…',
-    none:        v + ' — это последняя',
-    found:       'вышла версия ' + UPD.next + ', у тебя ' + UPD.version,
-    downloading: 'качаю ' + UPD.next + ' — ' + UPD.percent + '%',
-    ready:       'версия ' + UPD.next + ' скачана, осталось перезапустить',
-    error:       'не проверилось: ' + UPD.error
+    checking:    v + T(' — проверяю…'),
+    none:        v + T(' — это последняя'),
+    found:       T('вышла версия ') + UPD.next + T(', у тебя ') + UPD.version,
+    downloading: T('качаю ') + UPD.next + ' — ' + UPD.percent + '%',
+    ready:       T('версия ') + UPD.next + T(' скачана, осталось перезапустить'),
+    error:       T('не проверилось: ') + UPD.error
   };
   t.textContent = texts[UPD.state] || v;
 
   const labels = {
-    checking: 'Проверяю…',
-    found: 'Скачать',
+    checking: T('Проверяю…'),
+    found: T('Скачать'),
     downloading: UPD.percent + '%',
-    ready: 'Перезапустить'
+    ready: T('Перезапустить')
   };
-  b.textContent = labels[UPD.state] || 'Проверить';
+  b.textContent = labels[UPD.state] || T('Проверить');
   b.disabled = UPD.state === 'checking' || UPD.state === 'downloading';
   b.hidden = UPD.state === 'dev';
   t.parentElement.style.opacity = UPD.state === 'found' || UPD.state === 'ready' ? '1' : '.6';
@@ -3005,33 +3175,33 @@ function wireBackup() {
     const r = await window.api.backup.save();
     busy(false);
     if (r.canceled) return;
-    if (r.error) { info.textContent = 'Не сохранилось: ' + r.error; return; }
-    info.textContent = `Сохранено: ${r.tracks} треков, ${r.playlists} плейлистов, ${r.favorites} в избранном → ${r.file}`;
+    if (r.error) { info.textContent = T('Не сохранилось: ') + r.error; return; }
+    info.textContent = TF`Сохранено: ${r.tracks} треков, ${r.playlists} плейлистов, ${r.favorites} в избранном → ${r.file}`;
     toast('Бэкап сохранён');
   };
 
   $('bk-load').onclick = async () => {
     busy(true);
-    info.textContent = 'читаю файл…';
+    info.textContent = T('читаю файл…');
     const r = await window.api.backup.load();
     busy(false);
 
-    if (r.canceled) { info.textContent = 'Отменено'; return; }
-    if (r.error) { info.textContent = 'Не вышло: ' + r.error; return; }
+    if (r.canceled) { info.textContent = T('Отменено'); return; }
+    if (r.error) { info.textContent = T('Не вышло: ') + r.error; return; }
 
-    const bits = [`вернул ${r.restored} треков`];
-    if (r.added) bits.push(`${r.added} добавил заново`);
-    if (r.missing) bits.push(`${r.missing} не нашёл на диске`);
-    if (r.playlists) bits.push(`${r.playlists} плейлистов`);
-    info.textContent = bits.join(', ') + '. Перезапускаю окно…';
+    const bits = [TF`вернул ${r.restored} треков`];
+    if (r.added) bits.push(TF`${r.added} добавил заново`);
+    if (r.missing) bits.push(TF`${r.missing} не нашёл на диске`);
+    if (r.playlists) bits.push(TF`${r.playlists} плейлистов`);
+    info.textContent = bits.join(', ') + T('. Перезапускаю окно…');
 
     toast('Восстановлено — обновляю');
-    try { audio.pause(); } catch {}
+    pauseAll();
     setTimeout(() => location.reload(), 1400);
   };
 
   window.api.backup.onProgress(p => {
-    if (p) info.textContent = `восстанавливаю ${p.done} из ${p.total}…`;
+    if (p) info.textContent = TF`восстанавливаю ${p.done} из ${p.total}…`;
   });
 }
 
@@ -3040,19 +3210,19 @@ function paintDl() {
   if (!t) return;
 
   if (DL.busy) t.textContent = DL.busy;
-  else if (DL.ok) t.textContent = `yt-dlp ${DL.version} — скачивание работает`;
-  else if (DL.error) t.textContent = 'yt-dlp найден, но не запускается: ' + DL.error;
-  else t.textContent = 'yt-dlp не найден — без него не работает поиск по YouTube';
+  else if (DL.ok) t.textContent = TF`yt-dlp ${DL.version} — скачивание работает`;
+  else if (DL.error) t.textContent = T('yt-dlp найден, но не запускается: ') + DL.error;
+  else t.textContent = T('yt-dlp не найден — без него не работает поиск по YouTube');
   t.parentElement.style.opacity = DL.ok && !DL.busy ? '1' : '.6';
 
   const g = $('dl-get');
   if (g) {
-    g.textContent = DL.ok ? 'Обновить yt-dlp' : 'Скачать yt-dlp';
+    g.textContent = DL.ok ? T('Обновить yt-dlp') : T('Скачать yt-dlp');
     g.disabled = !!DL.busy;
   }
 
   const p = $('dl-path');
-  if (p) { p.textContent = DL.folder || 'папка не выбрана'; p.title = DL.folder || ''; }
+  if (p) { p.textContent = DL.folder || T('папка не выбрана'); p.title = DL.folder || ''; }
   const f = $('dl-fold');
   if (f) f.hidden = !DL.ok;
 }
@@ -3062,7 +3232,7 @@ function wireYtdlpGet() {
   if (!g) return;
 
   window.api.dl.onInstall(p => {
-    DL.busy = p === null ? '' : `качаю yt-dlp… ${p}%`;
+    DL.busy = p === null ? '' : TF`качаю yt-dlp… ${p}%`;
     paintDl();
   });
 
@@ -3080,7 +3250,7 @@ function wireYtdlpGet() {
     }
 
     await loadDlStatus();
-    toast(`yt-dlp ${r.version || ''} готов — ${Math.round(r.size / 1048576)} МБ`);
+    toast(TF`yt-dlp ${r.version || ''} готов — ${Math.round(r.size / 1048576)} МБ`);
   };
 }
 
@@ -3168,7 +3338,7 @@ function setSleep(v, quiet) {
   clearInterval(SLEEP.timer);
   SLEEP.timer = null;
   SLEEP.mode = String(v);
-  audio.volume = audio.muted ? 0 : S.cfg.volume;
+  for (const d of DECKS) d.volume = d.muted ? 0 : S.cfg.volume;
 
   if (SLEEP.mode === '0') {
     SLEEP.at = 0;
@@ -3179,7 +3349,7 @@ function setSleep(v, quiet) {
   if (SLEEP.mode === 'track') {
     SLEEP.at = 0;
     $('sleep-chip').classList.add('on');
-    $('sleep-left').textContent = 'до конца';
+    $('sleep-left').textContent = T('до конца');
     if (!quiet) toast('Выключусь в конце трека');
     return;
   }
@@ -3189,7 +3359,7 @@ function setSleep(v, quiet) {
   $('sleep-chip').classList.add('on');
   SLEEP.timer = setInterval(tickSleep, 500);
   tickSleep();
-  if (!quiet) toast(`Выключусь через ${min} мин`);
+  if (!quiet) toast(TF`Выключусь через ${min} мин`);
 }
 
 function tickSleep() {
@@ -3199,14 +3369,36 @@ function tickSleep() {
   $('sleep-left').textContent = fmt(left / 1000);
   // последние полминуты уводим громкость в ноль, чтобы не обрывало резко
   const FADE = 30000;
-  if (left < FADE) audio.volume = (audio.muted ? 0 : S.cfg.volume) * (left / FADE);
+  if (left < FADE) for (const d of DECKS) d.volume = (d.muted ? 0 : S.cfg.volume) * (left / FADE);
 }
 
 function sleepNow() {
-  audio.pause();
+  pauseAll();
+  finishXf();
   setSleep(0, true);
   sleepRepaint && sleepRepaint();
   toast('Таймер сработал — музыка выключена');
+}
+
+/* смена языка на лету: разметку переводит i18n, а всё, что плеер рисует сам,
+   надо собрать заново - иначе половина окна останется на прежнем языке */
+function relabel() {
+  const go = (name, fn) => { try { fn(); } catch (e) { console.error('[' + name + ']', e); } };
+  go('строки', renderRows);
+  go('очередь', renderQueue);
+  go('вкладки', renderChips);
+  go('шапка плейлиста', renderPlHead);
+  go('профиль', renderProfile);
+  go('палитры профиля', () => repaintProfPal && repaintProfPal());
+  go('папки', renderFolders);
+  go('клавиши', renderKeys);
+  go('приватность', renderPrivacy);
+  go('обновления', paintUpd);
+  go('yt-dlp', paintDl);
+  go('дискорд', () => paintDiscord(dcLast));
+  go('темы', () => { if (typeof repaintTheme === 'function') repaintTheme(); });
+  go('трек', () => { if (S.track) paintTrack(S.track); });
+  go('поиск', () => { if (typeof renderSearch === 'function' && sqResults.length) renderSearch(); });
 }
 
 /* ---- перетаскивание файлов в окно ---- */
@@ -3249,7 +3441,7 @@ function wireDrop() {
       go('library');
       renderRows();
       play(tracks[0]);
-      if (!dirs.length) toast(tracks.length === 1 ? 'Играю' : `Играю ${tracks.length} треков`);
+      if (!dirs.length) toast(tracks.length === 1 ? 'Играю' : TF`Играю ${tracks.length} треков`);
     } else if (!dirs.length) {
       toast('Музыки в этом не нашёл');
     }
@@ -3257,10 +3449,51 @@ function wireDrop() {
 }
 
 /* ---- вкладка "Темы" ---- */
+/* одна отрисовка на все палитры: акцент интерфейса, ник и титул.
+   первая строка - яркие, вторая - матовые */
+function paintSwatches(box, cur, pick, autoTitle) {
+  box.textContent = '';
+  cur = (cur || '').toLowerCase();
+
+  const sw = c => {
+    const b = el('button', cur === c ? 'on' : '');
+    b.style.background = c;
+    b.title = c;
+    b.onclick = () => pick(c);
+    return b;
+  };
+  const line = lab => {
+    const row = el('div', 'pal-line');
+    const l = el('span', 'pal-sub');
+    l.textContent = T(lab);
+    row.appendChild(l);
+    box.appendChild(row);
+    return row;
+  };
+
+  const bright = line('Яркие');
+  const auto = el('button', 'auto' + (cur ? '' : ' on'));
+  auto.title = T(autoTitle);
+  auto.onclick = () => pick('');
+  bright.appendChild(auto);
+  for (const c of PALETTE) bright.appendChild(sw(c));
+
+  const matte = line('Матовые');
+  for (const c of PALETTE_MATTE) matte.appendChild(sw(c));
+}
+
 const PALETTE = [
   '#ff5c5c', '#ff8a3d', '#ffd93d', '#8cd94f', '#4ff0c0', '#3fd0d6', '#57a6ff',
   '#6c7bff', '#9b8cff', '#d47aff', '#ff4fd8', '#ff7aa8', '#b0a89c', '#e8e6ef'
 ];
+// матовые: те же тона, но насыщенность и светлота выровнены -
+// набор читается одной семьёй, а не случайной россыпью
+const PALETTE_MATTE = [
+  '#ba7878', '#b8906f', '#baaa6d', '#91b06d', '#73b09b', '#74a9af', '#7e9ab9',
+  '#838bb9', '#918abc', '#a787ba', '#b983ae', '#be8999', '#9f9284', '#a0a6b0'
+];
+// сила перекраса интерфейса под выбранный цвет
+const TINTS = { off: 0, soft: .35, mid: .7, full: 1 };
 let repaintTheme = null;
 
 function wireThemes() {
@@ -3296,6 +3529,8 @@ function wireThemes() {
                          v => setTheme({ uiWeight: Number(v) }));
   const pBarP = bindPick('p-barprog', () => String(th().barProg || 'line'),
                          v => setTheme({ barProg: v }));
+  const pTint = bindPick('p-tint', () => String(th().tint || 'off'),
+                         v => setTheme({ tint: v }));
   const swBarR = bindSwitch('s-barround', () => !!th().barRound,
                             v => setTheme({ barRound: v }));
 
@@ -3328,29 +3563,17 @@ function wireThemes() {
 
   // палитра: свой цвет главнее автоподбора под обложку
   function paintPal() {
-    const box = $('pal');
-    box.textContent = '';
-    const cur = (th().accentColor || '').toLowerCase();
-
-    const auto = el('button', 'auto' + (cur ? '' : ' on'));
-    auto.title = 'из обложки';
-    auto.onclick = () => { setTheme({ accentColor: '' }); paintPal(); };
-    box.appendChild(auto);
-
-    for (const c of PALETTE) {
-      const b = el('button', cur === c ? 'on' : '');
-      b.style.background = c;
-      b.title = c;
-      b.onclick = () => { setTheme({ accentColor: c }); paintPal(); };
-      box.appendChild(b);
-    }
+    paintSwatches($('pal'), th().accentColor, c => {
+      setTheme({ accentColor: c });
+      paintPal();
+    }, 'из обложки');
   }
   paintPal();
 
   function paintVid() {
     const on = th().bg === 'video';
     $('vid-box').hidden = !on;
-    $('vid-path').textContent = S.cfg.videoFolder || 'папка не выбрана';
+    $('vid-path').textContent = S.cfg.videoFolder || T('папка не выбрана');
     $('vid-path').title = S.cfg.videoFolder || '';
     if (on) loadVideoList();
 
@@ -3386,7 +3609,7 @@ function wireThemes() {
   repaintTheme = () => {
     fUi(); fLy(); paintPal();
     pLay(); pViz(); pDisc(); pBg(); pAuto();
-    pSize(); pWgt(); pBarP();
+    pSize(); pWgt(); pBarP(); pTint();
     rPow(); rSpd(); rAl(); rBlur(); rDim();
     swSpin(); swBeat(); swPx(); swAc(); swBarR();
     paintVid(); renderPresets(); renderProfiles();
@@ -3415,7 +3638,7 @@ function wireSettings() {
     b.disabled = true;
     const res = await window.api.search.fixTags();
     b.disabled = false;
-    b.textContent = 'Подобрать теги';
+    b.textContent = T('Подобрать теги');
 
     S.tracks = res.tracks || S.tracks;
     if (S.track) {
@@ -3425,11 +3648,11 @@ function wireSettings() {
     renderChips();
     renderRows();
     renderQueue();
-    toast(res.fixed ? `Уточнил ${res.fixed} из ${res.checked}` : 'Подходящего в каталоге не нашлось');
+    toast(res.fixed ? TF`Уточнил ${res.fixed} из ${res.checked}` : 'Подходящего в каталоге не нашлось');
   };
 
   window.api.search.onProgress(p => {
-    $('fix-tags').textContent = p ? `ищу… ${p.done + 1}/${p.total}` : 'Подобрать теги';
+    $('fix-tags').textContent = p ? TF`ищу… ${p.done + 1}/${p.total}` : T('Подобрать теги');
   });
 
   bindSwitch('s-lyrics', () => S.cfg.lyrics, v => {
@@ -3491,6 +3714,27 @@ function wireSettings() {
   };
 
   wireEq();
+  bindPick('p-lang', () => S.cfg.lang || 'ru', v => {
+    S.cfg.lang = v;
+    window.api.settings.set({ lang: v });
+    setLang(v);
+    relabel();                      // то, что нарисовал сам плеер, статический перевод не достаёт
+  });
+
+  bindPick('p-xf', () => String(S.cfg.xfade || 0), v => {
+    S.cfg.xfade = Number(v);
+    window.api.settings.set({ xfade: S.cfg.xfade });
+    if (!S.cfg.xfade) finishXf();     // выключили посреди перехода - закрываем его
+  });
+  bindSwitch('s-xfman', () => !!S.cfg.xfadeManual, v => {
+    S.cfg.xfadeManual = v;
+    window.api.settings.set({ xfadeManual: v });
+  });
+  bindSwitch('s-level', () => !!S.cfg.level, v => {
+    S.cfg.level = v;
+    window.api.settings.set({ level: v });
+  });
+
   sleepRepaint = bindPick('p-sleep', () => SLEEP.mode, v => setSleep(v));
   $('sleep-chip').onclick = () => { setSleep(0); sleepRepaint(); };
 
@@ -3537,11 +3781,13 @@ function wireSettings() {
   });
 }
 
+let dcLast = null;
 function paintDiscord(s) {
+  dcLast = s;
   const e = $('dc-state');
-  if (!s || !s.on) { e.textContent = 'выключено'; e.className = 'dc-state'; return; }
-  if (s.ready) { e.textContent = 'подключено'; e.className = 'dc-state ok'; return; }
-  e.textContent = s.error ? 'дискорд не отвечает — запущен?' : 'подключаюсь…';
+  if (!s || !s.on) { e.textContent = T('выключено'); e.className = 'dc-state'; return; }
+  if (s.ready) { e.textContent = T('подключено'); e.className = 'dc-state ok'; return; }
+  e.textContent = s.error ? T('дискорд не отвечает — запущен?') : T('подключаюсь…');
   e.className = 'dc-state' + (s.error ? ' err' : '');
 }
 window.api.discord.onState(paintDiscord);
@@ -3574,10 +3820,10 @@ $('c-repeat').onclick = () => {
 };
 $('c-ly').onclick = () => go('now');
 $('c-mute').onclick = () => {
-  audio.muted = !audio.muted;
-  audio.volume = audio.muted ? 0 : S.cfg.volume;
-  show($('ic-vol'), !audio.muted);
-  show($('ic-mute'), audio.muted);
+  const m = !audio.muted;
+  for (const d of DECKS) { d.muted = m; d.volume = m ? 0 : S.cfg.volume; }
+  show($('ic-vol'), !m);
+  show($('ic-mute'), m);
 };
 
 /* --- скорость --- */
@@ -3586,16 +3832,16 @@ const rateLabel = v => (Math.round(v * 100) / 100).toString().replace(/(\.\d*?)0
 function applyPitch() {
   // preservesPitch = false -> тон едет вместе со скоростью, это и есть slowed
   const keep = !S.cfg.ratePitch;
-  for (const k of ['preservesPitch', 'mozPreservesPitch', 'webkitPreservesPitch']) {
-    try { audio[k] = keep; } catch {}
-  }
+  for (const d of DECKS)
+    for (const k of ['preservesPitch', 'mozPreservesPitch', 'webkitPreservesPitch']) {
+      try { d[k] = keep; } catch {}
+    }
 }
 
 function setRate(v, save = true) {
   v = Math.max(0.5, Math.min(2, Math.round(v * 100) / 100));
   S.cfg.rate = v;
-  audio.playbackRate = v;
-  audio.defaultPlaybackRate = v;
+  for (const d of DECKS) { d.playbackRate = v; d.defaultPlaybackRate = v; }
   applyPitch();
 
   $('c-rate').textContent = rateLabel(v);
@@ -3639,7 +3885,7 @@ function toggleFull(on) {
   document.body.classList.remove('peek');
   window.api.win.full(want);
   if (want) go('now');
-  $('full-btn').title = want ? 'вернуть обычный вид (Esc)' : 'текст на весь экран (F)';
+  $('full-btn').title = want ? T('вернуть обычный вид (Esc)') : T('текст на весь экран (F)');
   setTimeout(() => { sizeViz(); centerLyrics(LY.cur, true); }, 430);
 }
 
@@ -3699,7 +3945,11 @@ draggable($('seek'), (p, done) => {
   }
 });
 draggable(document.querySelector('.vol'), p => {
-  if (audio.muted) { audio.muted = false; show($('ic-vol'), true); show($('ic-mute'), false); }
+  if (audio.muted) {
+    for (const d of DECKS) d.muted = false;
+    show($('ic-vol'), true);
+    show($('ic-mute'), false);
+  }
   setVolume(p);
 });
 document.querySelector('.vol').addEventListener('wheel', e => {
@@ -3761,7 +4011,7 @@ if ('mediaSession' in navigator) {
   const ms = navigator.mediaSession;
   try {
     ms.setActionHandler('play', () => audio.play());
-    ms.setActionHandler('pause', () => audio.pause());
+    ms.setActionHandler('pause', () => pauseAll());
     ms.setActionHandler('nexttrack', () => step(1));
     ms.setActionHandler('previoustrack', () => step(-1));
   } catch {}
@@ -4406,6 +4656,7 @@ requestAnimationFrame(drawPx);
 /* ===================== запуск ===================== */
 (async function boot() {
   S.cfg = await window.api.settings.get();
+  setLang(S.cfg.lang || 'ru');
 
   setVolume(S.cfg.volume, false);
   $('c-shuffle').classList.toggle('act', S.cfg.shuffle);
@@ -4443,8 +4694,8 @@ requestAnimationFrame(drawPx);
 
   const info = await window.api.info();
   $('about-line').innerHTML =
-    `Вслух ${info.version} · Electron ${info.versions.electron} · Chromium ${info.versions.chrome.split('.')[0]}<br>` +
-    `Настройки и обложки лежат в <b>${info.userData}</b>`;
+    TF`Вслух ${info.version} · Electron ${info.versions.electron} · Chromium ${info.versions.chrome.split('.')[0]}<br>` +
+    TF`Настройки и обложки лежат в <b>${info.userData}</b>`;
 
   go(S.cfg.view && document.getElementById('v-' + S.cfg.view) ? S.cfg.view : 'now');
 
