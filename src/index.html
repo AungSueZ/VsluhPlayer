@@ -556,6 +556,12 @@
           <h3>Текст песни</h3>
           <label class="sw"><input type="checkbox" id="s-lyrics"><i></i><span>Искать текст на lrclib.net</span></label>
 
+          <!-- живой пример: крутится сам и слушается тех же настроек, что и настоящий текст -->
+          <div class="lyprev" id="lyprev">
+            <div class="ly" id="lyp"><div class="ly-track" id="lyp-track"></div></div>
+            <span class="lyprev-tag">живой пример</span>
+          </div>
+
           <div class="pick-row">
             <span class="pick-lab">Подача</span>
             <div class="pick pick-wrap" id="p-theme">
@@ -575,6 +581,9 @@
               <button data-v="wave"     title="слово приподнимается, пока его тянут">Волна</button>
               <button data-v="scatter"  title="слова разлетелись и слетаются на место">Разлёт</button>
               <button data-v="word"     title="на экране только то слово, которое поют сейчас">Слово</button>
+              <button data-v="orbit"    title="строки лежат на дуге и проворачиваются мимо">Орбита</button>
+              <button data-v="slide"    title="спетое уезжает влево, предстоящее ждёт справа">Слайд</button>
+              <button data-v="breath"   title="текущая строка тихо пульсирует">Дыхание</button>
             </div>
           </div>
 
@@ -996,6 +1005,7 @@
 <script src="viz2.js"></script>
 <script src="app.js"></script>
 <script src="studio.js"></script>
+<script src="lyprev.js"></script>
 <script src="show.js"></script>
 </body>
 </html>

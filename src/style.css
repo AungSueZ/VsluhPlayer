@@ -344,6 +344,43 @@ a:hover{text-decoration:underline}
 }
 .ly.t-echo .ly-item.on{transform:none;filter:none;opacity:1}
 
+/* ---- орбита: строки лежат на дуге и проворачиваются мимо ----
+   центр вращения унесён далеко вниз, иначе это читалось бы как перекос,
+   а не как колесо. знак берём из --past/--soon: прошлое уходит в одну
+   сторону, будущее ждёт в другой */
+.ly.t-orbit{--ly-h:236px}
+.ly.t-orbit .ly-item{
+  transform-origin:50% 760px;
+  transform:rotate(calc((var(--past,0) - var(--soon,0)) * 3.2deg))
+            scale(calc(1 - var(--d,0) * .03));
+  opacity:calc(1 - var(--d,0) * .21);
+  filter:blur(calc(var(--d,0) * .45px));
+}
+.ly.t-orbit .ly-item.on{transform:rotate(0deg) scale(1);opacity:1;filter:none}
+
+/* ---- слайд: спетое уезжает влево, предстоящее ждёт справа ---- */
+.ly.t-slide .ly-item{
+  transform:translateX(calc((var(--soon,0) - var(--past,0)) * 21px));
+  opacity:calc(1 - var(--d,0) * .25);
+  filter:blur(calc(var(--d,0) * .55px));
+}
+.ly.t-slide .ly-item.on{transform:none;opacity:1;filter:none}
+
+/* ---- дыхание: текущая строка тихо пульсирует ----
+   качаем по своим часам, а не по басу: на тихом месте пульс не должен пропадать */
+/* нижняя точка пульса выше, чем у соседних строк: текущая не должна
+   оказываться тусклее остальных ни в одной фазе */
+@keyframes ly-breath{0%,100%{opacity:.84}50%{opacity:1}}
+.ly.t-breath .ly-item{
+  transform:none;
+  opacity:calc(1 - var(--d,0) * .3);
+  filter:blur(calc(var(--d,0) * .45px));
+}
+.ly.t-breath .ly-item.on{animation:ly-breath 2.8s ease-in-out infinite;filter:none}
+@media (prefers-reduced-motion:reduce){
+  .ly.t-breath .ly-item.on{animation:none;opacity:1}
+}
+
 /* ---- слово: на экране только то, которое поют прямо сейчас ---- */
 .ly.t-word .ly-item{opacity:0;transform:none;filter:none;text-align:center}
 .ly.t-word .ly-item.on{opacity:1;text-shadow:none}
@@ -490,6 +527,28 @@ a:hover{text-decoration:underline}
 .chip-ava{
   width:16px;height:16px;border-radius:5px;flex:none;margin-right:2px;
   background-size:cover;background-position:center;background-color:var(--glass2);
+}
+
+/* ===== живой пример текста =====
+   тот же .ly, что и на "Сейчас играет", поэтому все подачи работают в нём
+   сами собой. отличается только рамкой и тем, что ниже ростом */
+.lyprev{
+  position:relative;margin:14px 0 6px;
+  border:1px solid var(--line);border-radius:14px;
+  background:var(--glass);
+  padding:10px 14px 12px;
+  overflow:hidden;
+}
+.lyprev .ly{
+  margin-top:0;width:100%;
+  --ly-h:150px;
+  pointer-events:none;          /* это пример, по строкам не перематывают */
+}
+.lyprev .ly.off{display:block}  /* пустым он не бывает, прятать нечего */
+.lyprev-tag{
+  position:absolute;right:12px;top:9px;
+  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--dim2);pointer-events:none;
 }
 
 /* ===== профиль ===== */
@@ -816,6 +875,10 @@ body.paused .row-bars i{animation-play-state:paused}
 
 /* ---- настройки ---- */
 .set-scroll{flex:1;min-height:0;overflow-y:auto;padding:26px 32px 40px;max-width:760px}
+.set-scroll,.sys-list,.sq-scroll,.queue,.dlq-body,.studio-body{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  .set-scroll,.sys-list,.sq-scroll,.queue,.dlq-body,.studio-body{scroll-behavior:auto}
+}
 .set-block{margin-bottom:30px}
 .set-block h3{
   font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim2);

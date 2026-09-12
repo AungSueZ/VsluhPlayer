@@ -809,7 +809,7 @@ async function loadLyrics(t) {
   });
   if (gen !== lyGen) return;          // пока искали, трек сменился
 
-  if (!r || !r.lines?.length) { lyNote('текста нет', true); return; }
+  if (!r || !r.lines?.length) { lyNote('Текст не найден на lrclib.net', true); return; }
 
   buildLyrics(r);
   lyNote((r.synced ? '' : 'текст без тайм-кодов · ') + (r.source || ''));
@@ -2008,6 +2008,7 @@ function go(view) {
   document.querySelectorAll('.nav-i').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
   if (view === 'library') renderRows();
+  if (typeof lpStart === 'function') { if (view === 'settings') lpStart(); else lpStop(); }
   if (view === 'search') setTimeout(() => $('sq').focus(), 60);
   else if (sqPlaying) stopPreview();
   // пока вкладка скрыта, размеры нулевые - пересчитываем при показе
@@ -3396,6 +3397,7 @@ function relabel() {
   go('обновления', paintUpd);
   go('yt-dlp', paintDl);
   go('дискорд', () => paintDiscord(dcLast));
+  go('пример текста', () => { if (typeof lpRelang === 'function') lpRelang(); });
   go('темы', () => { if (typeof repaintTheme === 'function') repaintTheme(); });
   go('трек', () => { if (S.track) paintTrack(S.track); });
   go('поиск', () => { if (typeof renderSearch === 'function' && sqResults.length) renderSearch(); });
@@ -3619,6 +3621,8 @@ function wireThemes() {
 // смена темы меняет размеры строк - надо заново подвести текущую к середине
 function applyLyStyle() {
   lyClasses();
+  // живой пример в настройках слушается тех же настроек - обновляем вместе
+  if (typeof lpClasses === 'function') lpClasses();
   requestAnimationFrame(() => centerLyrics(LY.cur, true));
 }
 

@@ -9,7 +9,7 @@ def load(n):
     sp=importlib.util.spec_from_file_location(n,os.path.join(SP,n+'.py'))
     m=importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m.ROWS
 rows=[]
-for n in ['dict1','dict2','dict3','dict4','dict5']: rows+=load(n)
+for n in ['dict1','dict2','dict3','dict4','dict5','dict6']: rows+=load(n)
 seen={}
 for ru,uk,en in rows:
     if ru in seen and seen[ru]!=(uk,en):
