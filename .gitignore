@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+
+# качается кнопкой из настроек, в репозитории ему делать нечего
+yt-dlp.exe
+yt-dlp
+
+.env
+*.part
+Thumbs.db
+.DS_Store

@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.youtube.com https://s.ytimg.com https://w.soundcloud.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://w.soundcloud.com">
+<title>Вслух</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-vid" id="bg-vid">
+  <video id="vid-a" muted playsinline preload="auto"></video>
+  <video id="vid-b" muted playsinline preload="auto"></video>
+</div>
+<canvas id="px"></canvas>
+<div class="bg-art" id="bg-art"></div>
+<div class="bg-veil"></div>
+
+<!-- ---------- шапка ---------- -->
+<header class="titlebar">
+  <div class="tb-brand">
+    <span class="tb-logo">◈</span>
+    <span class="tb-name">Вслух</span>
+  </div>
+  <div class="tb-drag"></div>
+  <div class="tb-win">
+    <button class="tbtn" id="w-min" aria-label="свернуть"><svg viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1"/></svg></button>
+    <button class="tbtn" id="w-max" aria-label="развернуть"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg></button>
+    <button class="tbtn tbtn-x" id="w-close" aria-label="закрыть"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ---------- боковое меню ---------- -->
+  <aside class="side">
+    <nav class="nav">
+      <button class="nav-i on" data-view="now">
+        <svg viewBox="0 0 24 24"><path d="M12 3v10.6a4 4 0 1 0 2 3.4V7h5V3z"/></svg><span>Сейчас играет</span>
+      </button>
+      <button class="nav-i" data-view="library">
+        <svg viewBox="0 0 24 24"><path d="M4 4h3v16H4zm5 0h2v16H9zm4.4.4 2.9-.8 4.2 15.5-2.9.8z"/></svg><span>Библиотека</span>
+      </button>
+      <button class="nav-i" data-view="search">
+        <svg viewBox="0 0 24 24"><path d="M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3m0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10"/></svg><span>Поиск</span>
+      </button>
+      <button class="nav-i" data-view="system">
+        <svg viewBox="0 0 24 24"><path d="M3 5h18v11H3zm7 13h4l1 2H9z"/></svg><span>В системе</span>
+        <em class="nav-dot" id="sys-dot" hidden></em>
+      </button>
+      <button class="nav-i" data-view="themes">
+        <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4.4-4-8-9-8m-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3.5 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3"/></svg><span>Темы</span>
+      </button>
+      <button class="nav-i" data-view="settings">
+        <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m9.4 4a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2-1.2l-.4-2.6h-4l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2"/></svg><span>Настройки</span>
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="queue-head">Очередь <em id="q-count">0</em></div>
+      <div class="queue" id="queue"></div>
+    </div>
+  </aside>
+
+  <!-- ---------- контент ---------- -->
+  <main class="main">
+
+    <!-- сейчас играет -->
+    <section class="view on" id="v-now">
+      <canvas id="viz"></canvas>
+
+      <button class="full-btn stu-btn" id="stu-btn" title="карточка и клип">
+        <svg viewBox="0 0 24 24"><path d="M9 3h6l1.2 2H20a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3.8zm3 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10m0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6"/></svg>
+      </button>
+
+      <button class="full-btn lay-btn" id="lay-btn" title="раскладка (L)">
+        <svg viewBox="0 0 24 24"><path d="M3 4h8v16H3zm10 0h8v2h-8zm0 4h8v2h-8zm0 4h8v2h-8zm0 4h8v2h-8z"/></svg>
+      </button>
+
+      <button class="full-btn" id="full-btn" title="текст на весь экран (F)">
+        <svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>
+      </button>
+
+      <!-- в обычной раскладке обёртки прозрачны (display:contents),
+           в двухколоночных превращаются в сами колонки -->
+      <div class="now-wrap">
+        <div class="now-side">
+          <div class="disc-box">
+            <div class="disc" id="disc">
+              <img id="now-art" alt="">
+              <span class="disc-note">♫</span>
+              <span class="disc-hole"></span>
+            </div>
+          </div>
+          <h1 class="now-title" id="now-title">Ничего не играет</h1>
+          <p class="now-artist" id="now-artist">выбери трек в библиотеке</p>
+          <div class="now-src" id="now-src" hidden></div>
+        </div>
+
+        <div class="now-col">
+          <div class="ly" id="ly"><div class="ly-track" id="ly-track"></div></div>
+          <div class="ly-note" id="ly-note"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- библиотека -->
+    <section class="view" id="v-library">
+      <div class="lib-bar">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4m0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8"/></svg>
+          <input id="q" type="text" placeholder="поиск по трекам и артистам" spellcheck="false">
+          <button class="q-x" id="q-x" hidden>✕</button>
+        </div>
+        <div class="lib-info" id="lib-info"></div>
+        <button class="btn btn-s" id="rescan">
+          <svg viewBox="0 0 24 24"><path d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7"/></svg>
+          обновить
+        </button>
+      </div>
+
+      <div class="lib-tabs">
+        <div class="chips" id="lib-chips"></div>
+        <select class="sel" id="lib-sort">
+          <option value="artist">по артисту</option>
+          <option value="title">по названию</option>
+          <option value="album">по альбому</option>
+          <option value="added">сначала новые</option>
+          <option value="duration">по длине</option>
+        </select>
+      </div>
+
+      <div class="lib-scroll" id="lib-scroll">
+        <div class="lib-pad" id="lib-pad">
+          <div class="lib-rows" id="lib-rows"></div>
+        </div>
+        <div class="empty" id="lib-empty" hidden>
+          <div class="empty-ic">♫</div>
+          <p>Библиотека пуста</p>
+          <span>Добавь папку с музыкой — приложение само прочитает теги и обложки</span>
+          <button class="btn" id="add-first">Выбрать папку</button>
+        </div>
+      </div>
+      <div class="scan" id="scan" hidden><div class="scan-fill" id="scan-fill"></div><span id="scan-txt"></span></div>
+    </section>
+
+    <!-- поиск по каталогам -->
+    <section class="view" id="v-search">
+      <div class="lib-bar">
+        <div class="search">
+          <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4m0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8"/></svg>
+          <input id="sq" type="text" placeholder="найти трек — например, кишлак кошка" spellcheck="false">
+          <button class="q-x" id="sq-x" hidden>✕</button>
+        </div>
+        <div class="lib-info" id="sq-info"></div>
+      </div>
+
+      <div class="lib-tabs">
+        <div class="chips">
+          <button class="chip on" data-mode="catalog" id="sm-catalog">Каталог</button>
+          <button class="chip" data-mode="yt" id="sm-yt">YouTube</button>
+        </div>
+        <span class="lib-info">можно вставить ссылку на трек, альбом или целый плейлист</span>
+      </div>
+
+      <!-- появляется, когда отмечен хоть один трек -->
+      <div class="sq-sel" id="sq-sel" hidden>
+        <span class="sq-sel-n" id="sq-sel-n">Выбрано 0</span>
+        <button class="chip" id="sq-sel-all">Все</button>
+        <button class="chip" id="sq-sel-none">Снять</button>
+        <button class="chip sq-sel-go" id="sq-sel-dl">Скачать выбранное</button>
+      </div>
+
+      <div class="sq-scroll" id="sq-scroll">
+        <div class="sq-list" id="sq-list"></div>
+        <div class="empty" id="sq-empty">
+          <div class="empty-ic">⌕</div>
+          <p>Поиск по каталогу</p>
+          <span>Deezer и iTunes: название, артист, альбом, обложка и отрывок на 30 секунд.
+                Рядом с каждым треком — кнопки, чтобы открыть его в Яндексе, VK или на YouTube.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- что играет в других приложениях -->
+    <section class="view" id="v-system">
+      <div class="sys-head">
+        <h2>Играет в других приложениях</h2>
+        <p>Spotify, Яндекс Музыка, браузер, AIMP, Telegram — всё, что умеет показывать трек в панели громкости Windows</p>
+      </div>
+      <div class="sys-list" id="sys-list"></div>
+      <div class="empty" id="sys-empty">
+        <div class="empty-ic">◴</div>
+        <p>Тишина</p>
+        <span>Включи что-нибудь в любом плеере — оно появится здесь</span>
+      </div>
+    </section>
+
+    <!-- темы -->
+    <section class="view" id="v-themes">
+      <div class="set-scroll">
+
+        <div class="set-block">
+          <h3>Готовые темы</h3>
+          <div class="presets" id="presets"></div>
+        </div>
+
+        <div class="set-block">
+          <h3>Шрифты</h3>
+          <div class="font-lab">Интерфейс</div>
+          <div class="fonts" id="f-ui"></div>
+          <div class="font-lab">Название и текст песни</div>
+          <div class="fonts" id="f-ly"></div>
+        </div>
+
+        <div class="set-block">
+          <h3>Цвет</h3>
+          <label class="sw"><input type="checkbox" id="s-accent"><i></i><span>Подбирать цвет интерфейса под обложку</span></label>
+          <div class="pal-row" id="pal-row">
+            <span class="pick-lab">Свой цвет</span>
+            <div class="pal" id="pal"></div>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>Визуализация</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Вид</span>
+            <div class="pick" id="p-viz">
+              <button data-v="ring"   title="палочки вокруг обложки">Кольцо</button>
+              <button data-v="radial" title="замкнутая волна вокруг обложки">Круговая волна</button>
+              <button data-v="wave"   title="живая осциллограмма">Осциллограф</button>
+              <button data-v="bars"   title="столбики по низу экрана">Столбики</button>
+              <button data-v="dust"   title="частицы, которые расталкивает басом">Пыль</button>
+              <button data-v="tunnel" title="кольца улетают от обложки на каждую долю">Туннель</button>
+              <button data-v="fall"   title="спектрограмма: старый звук уползает вверх">Водопад</button>
+              <button data-v="mirror" title="столбики от средней линии в обе стороны">Зеркало</button>
+              <button data-v="spiral" title="спираль точек: у центра низы, к краю верхи">Спираль</button>
+              <button data-v="bloom"  title="цветок, у которого каждый лепесток дышит своей полосой">Лепестки</button>
+              <button data-v="warp"   title="звёзды летят на тебя, скорость держит бас">Варп</button>
+              <button data-v="grid"   title="сетка уходит за горизонт, на горизонте спектр">Горизонт</button>
+              <button data-v="off">Нет</button>
+            </div>
+          </div>
+          <label class="rng">Сила
+            <input type="range" id="r-vizpower" min="40" max="170" step="5">
+            <em id="r-vizpower-v"></em>
+          </label>
+        </div>
+
+        <div class="set-block">
+          <h3>Раскладка</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Вид</span>
+            <div class="pick" id="p-lay">
+              <button data-v="stack" title="обложка сверху, текст под ней">Обложка сверху</button>
+              <button data-v="apple" title="обложка слева, текст колонкой справа">Обложка слева</button>
+              <button data-v="side"  title="текст слева, обложка справа">Текст слева</button>
+              <button data-v="text"  title="крупный текст во всю ширину, без обложки">Только текст</button>
+              <button data-v="cover" title="большая обложка, текст спрятан">Только обложка</button>
+            </div>
+          </div>
+          <p class="hint">То же самое переключается кнопкой в углу вкладки «Сейчас играет»
+             или клавишей <b>L</b>.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Обложка</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Форма</span>
+            <div class="pick" id="p-disc">
+              <button data-v="vinyl">Винил</button>
+              <button data-v="square">Квадрат</button>
+              <button data-v="plain">Без рамки</button>
+            </div>
+          </div>
+          <label class="sw"><input type="checkbox" id="s-spin"><i></i><span>Вращать во время игры</span></label>
+          <label class="sw"><input type="checkbox" id="s-beat"><i></i><span>Пульсировать в такт басу</span></label>
+        </div>
+
+        <div class="set-block">
+          <h3>Фон</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Источник</span>
+            <div class="pick" id="p-bg">
+              <button data-v="cover" title="размытая обложка играющего трека">Обложка</button>
+              <button data-v="video" title="ролики из выбранной папки">Видео</button>
+              <button data-v="url"   title="картинка или видео по ссылке из интернета">По ссылке</button>
+              <button data-v="plain">Просто тёмный</button>
+            </div>
+          </div>
+
+          <div class="url-box" id="url-box">
+            <label class="num">Ссылка
+              <input type="text" id="s-bgurl" placeholder="https://… .jpg, .gif, .mp4" spellcheck="false">
+            </label>
+            <div class="dc-state" id="url-state"></div>
+            <p class="hint">Годится прямая ссылка на <b>картинку</b> (jpg, png, webp, gif) или на
+               <b>видео</b> (mp4, webm) — видео зациклится само. Ссылка на страницу с картинкой
+               не подойдёт: нужна та, что открывается и показывает саму картинку.
+               Размытие и затемнение снизу действуют и на неё.</p>
+          </div>
+
+          <div class="vid-box" id="vid-box">
+            <div class="fold" id="vid-fold">
+              <span id="vid-path">папка не выбрана</span>
+              <button id="vid-clear" title="убрать">✕</button>
+            </div>
+            <div class="row-btns">
+              <button class="btn" id="vid-pick">Выбрать папку с видео</button>
+              <span class="dc-state" id="vid-count"></span>
+            </div>
+            <p class="hint">Кидай в эту папку любые mp4 или webm — плеер перемешает их и будет крутить по кругу, плавно переключая.</p>
+          </div>
+
+          <label class="rng">Размытие
+            <input type="range" id="r-blur" min="0" max="140" step="4">
+            <em id="r-blur-v"></em>
+          </label>
+          <label class="rng">Затемнение
+            <input type="range" id="r-dim" min="0" max="85" step="5">
+            <em id="r-dim-v"></em>
+          </label>
+          <label class="sw"><input type="checkbox" id="s-px"><i></i><span>Частицы поверх фона</span></label>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- настройки -->
+    <section class="view" id="v-settings">
+      <div class="set-scroll">
+
+        <div class="set-block">
+          <h3>Папки с музыкой</h3>
+          <div class="folders" id="folders"></div>
+          <div class="row-btns">
+            <button class="btn" id="add-folder">Добавить папку</button>
+            <button class="btn btn-ghost" id="rescan2">Пересканировать</button>
+            <button class="btn btn-ghost" id="fix-tags">Подобрать теги</button>
+          </div>
+          <p class="hint">«Подобрать теги» найдёт в каталоге треки, у которых не хватает артиста
+             или альбома, и проставит их вместе с обложкой. Сами файлы не меняются — правки
+             живут только в библиотеке приложения.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Текст песни</h3>
+          <label class="sw"><input type="checkbox" id="s-lyrics"><i></i><span>Искать текст на lrclib.net</span></label>
+
+          <div class="pick-row">
+            <span class="pick-lab">Подача</span>
+            <div class="pick" id="p-theme">
+              <button data-v="soft"     title="строки плавно проезжают, соседние гаснут">Мягко</button>
+              <button data-v="karaoke"  title="строка заливается цветом по мере пения">Караоке</button>
+              <button data-v="focus"    title="только текущая строка, крупно, остальное в размытии">Фокус</button>
+              <button data-v="feed"     title="весь текст лентой, как в Apple Music">Лента</button>
+              <button data-v="type"     title="строка печатается по буквам">Машинка</button>
+            </div>
+          </div>
+
+          <div class="pick-row">
+            <span class="pick-lab">Размер</span>
+            <div class="pick" id="p-size">
+              <button data-v="sm">Мелкий</button>
+              <button data-v="md">Обычный</button>
+              <button data-v="lg">Крупный</button>
+            </div>
+          </div>
+
+          <label class="sw"><input type="checkbox" id="s-lyglow"><i></i><span>Свечение текущей строки</span></label>
+          <label class="sw"><input type="checkbox" id="s-lyblur"><i></i><span>Размывать соседние строки</span></label>
+
+          <p class="hint">Можно положить свой <b>.lrc</b> рядом с треком — он будет главнее интернета.</p>
+          <label class="num">Сдвиг текста, секунд
+            <input type="number" id="s-lyoff" step="0.1" min="-10" max="10">
+          </label>
+        </div>
+
+        <div class="set-block">
+          <h3>Стриминг</h3>
+          <p class="hint">Плеер умеет проигрывать треки с YouTube и SoundCloud через их
+             официальные встроенные плееры — целиком, с их серверов, ничего не скачивая.
+             Вставь ссылку на трек в строку поиска, и он заиграет.</p>
+          <div class="fold" id="dl-state">
+            <span id="dl-text">проверяю…</span>
+            <button class="btn btn-s" id="dl-get">Скачать yt-dlp</button>
+          </div>
+          <p class="hint" id="dl-get-hint">Качается с официальных релизов
+             <a href="#" data-ext="https://github.com/yt-dlp/yt-dlp/releases/latest">github.com/yt-dlp/yt-dlp</a>,
+             контрольная сумма сверяется с опубликованной там же — на диск файл ложится,
+             только если она сошлась. Без него не работают ни поиск по YouTube, ни скачивание,
+             ни плейлисты по ссылке.</p>
+          <div class="fold" id="dl-fold">
+            <span id="dl-path">папка не выбрана</span>
+            <button id="dl-pick" title="сменить папку">…</button>
+          </div>
+          <p class="hint">Скачанные треки складываются сюда и сразу попадают в библиотеку.
+             Артист, альбом и обложка подбираются по каталогу автоматически.
+             Можно отметить галочками сразу несколько треков в поиске — они встанут в очередь.</p>
+
+          <label class="num">Куки браузера для YouTube
+            <select id="s-cookies">
+              <option value="">не использовать</option>
+              <option value="chrome">Chrome</option>
+              <option value="edge">Edge</option>
+              <option value="firefox">Firefox</option>
+              <option value="brave">Brave</option>
+              <option value="opera">Opera</option>
+              <option value="vivaldi">Vivaldi</option>
+            </select>
+          </label>
+          <p class="hint">Ролики с пометкой <b>18+</b> YouTube отдаёт только тем, кто вошёл в аккаунт.
+             Если выбрать браузер, yt-dlp возьмёт из него куки и покажет ютубу, что ты залогинен.
+             Куки читаются на этом компьютере и уходят только на сам YouTube — больше никуда.
+             Браузер при этом лучше закрыть, иначе он держит свою базу занятой.</p>
+
+          <label class="num">Ключ YouTube API
+            <input type="text" id="s-ytkey" placeholder="не нужен, если есть yt-dlp" spellcheck="false">
+          </label>
+          <p class="hint">
+            Запасной вариант на случай, если yt-dlp нет: бесплатный ключ на
+            <a href="#" data-ext="https://console.cloud.google.com/apis/library/youtube.googleapis.com">console.cloud.google.com</a>
+            → <b>YouTube Data API v3</b> → <b>Создать учётные данные</b> → <b>Ключ API</b>.
+          </p>
+          <p class="hint">На таких треках не работают эквалайзер и визуализация — звук идёт
+             внутри чужого плеера, и мы его не слышим. Текст песни при этом подхватывается.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Эквалайзер</h3>
+          <label class="sw"><input type="checkbox" id="s-eqon"><i></i><span>Включить</span></label>
+          <div class="pick-row">
+            <span class="pick-lab">Пресет</span>
+            <div class="pick" id="p-eq">
+              <button data-v="flat">Плоский</button>
+              <button data-v="bass">Бас</button>
+              <button data-v="vocal">Вокал</button>
+              <button data-v="bright">Яркий</button>
+              <button data-v="club">Клуб</button>
+              <button data-v="night">Ночь</button>
+            </div>
+          </div>
+          <div class="eqbars" id="eqbars"></div>
+          <p class="hint">Тяни полосы мышкой или колесом. Двойной клик по полосе — обнулить её.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Таймер сна</h3>
+          <div class="pick-row">
+            <span class="pick-lab">Выключить</span>
+            <div class="pick" id="p-sleep">
+              <button data-v="0">Не надо</button>
+              <button data-v="15">15 мин</button>
+              <button data-v="30">30 мин</button>
+              <button data-v="45">45 мин</button>
+              <button data-v="60">Час</button>
+              <button data-v="track">В конце трека</button>
+            </div>
+          </div>
+          <p class="hint">Последние полминуты громкость плавно уходит в ноль, чтобы не обрывало на полуслове.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Горячие клавиши</h3>
+          <label class="sw"><input type="checkbox" id="s-hk"><i></i><span>Включить</span></label>
+          <label class="sw"><input type="checkbox" id="s-mk"><i></i><span>Перехватывать медиа-клавиши</span></label>
+          <p class="hint">Когда у нас ничего не заряжено, нажатие уходит дальше — в Spotify или браузер.</p>
+          <div class="keys" id="keys"></div>
+        </div>
+
+        <div class="set-block">
+          <h3>Статус в Discord</h3>
+          <label class="sw"><input type="checkbox" id="s-dc"><i></i><span>Показывать, что я слушаю</span></label>
+          <label class="num">Application ID
+            <input type="text" id="s-dcid" placeholder="1234567890123456789" spellcheck="false">
+          </label>
+          <p class="hint">
+            Заведи приложение на <a href="#" data-ext="https://discord.com/developers/applications">discord.com/developers/applications</a>,
+            скопируй <b>Application ID</b> и вставь сюда. Название приложения — это то, что увидят друзья после слова «Слушает».
+          </p>
+          <label class="sw"><input type="checkbox" id="s-dcsys"><i></i><span>Показывать и то, что играет в других плеерах</span></label>
+          <label class="sw"><input type="checkbox" id="s-dcidle"><i></i><span>Прятать статус на паузе</span></label>
+          <div class="row-btns">
+            <span class="dc-state" id="dc-state">выключено</span>
+            <button class="btn btn-ghost btn-s" id="dc-retry">Переподключить</button>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>Перенос и бэкап</h3>
+          <p class="hint">Вся библиотека, плейлисты, избранное и настройки складываются в один файл.
+             Его можно унести на другой компьютер, положить в облако или просто держать
+             на случай, если что-то сломается. Это и есть синхронизация — без аккаунтов и паролей.</p>
+
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="bk-save">Сохранить бэкап</button>
+            <button class="btn btn-ghost" id="bk-load">Восстановить из файла</button>
+          </div>
+          <p class="hint" id="bk-info">В файл попадают названия, артисты и пути к трекам —
+             сама музыка остаётся на диске. Ключи и токены в бэкап не записываются.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Конфиденциальность</h3>
+          <p class="hint">Плеер не заводит аккаунтов, не собирает статистику и не следит за тобой.
+             Музыка, настройки и обложки лежат на этом компьютере. В сеть уходят только текстовые
+             запросы — артист и название, — чтобы найти текст песни и обложку.
+             <b>Сами аудиофайлы не отправляются никогда.</b></p>
+
+          <div class="priv" id="priv"></div>
+
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="priv-data">Папка с данными</button>
+            <button class="btn btn-ghost" id="priv-full">Политика целиком</button>
+          </div>
+          <p class="hint">В папке с данными лежат настройки, библиотека, обложки и кэш текстов.
+             Удалишь её — приложение забудет всё, кроме самих музыкальных файлов.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Прочее</h3>
+          <label class="sw"><input type="checkbox" id="s-smtc"><i></i><span>Следить за другими плеерами</span></label>
+          <label class="sw"><input type="checkbox" id="s-art"><i></i><span>Искать обложки в интернете</span></label>
+          <p class="hint">Если в файле обложки нет, приложение поищет её по артисту и названию. Треки при этом никуда не отправляются — только текстовый запрос.</p>
+          <p class="hint" id="about-line"></p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ---------- нижняя панель ---------- -->
+<footer class="bar">
+  <div class="bar-now">
+    <div class="bar-art" id="bar-art"><img id="bar-img" alt=""><span>♫</span></div>
+    <div class="bar-meta">
+      <div class="bar-title" id="bar-title">—</div>
+      <div class="bar-artist" id="bar-artist"></div>
+    </div>
+  </div>
+
+  <div class="bar-mid">
+    <div class="bar-ctrl">
+      <button class="cbtn" id="c-shuffle" aria-label="перемешать">
+        <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.2l-2.3 3-1.2-1.6L13.7 6H17zM3 6h4.3l6.4 8.5H17V12l4 4-4 4v-3h-4.3L6.3 8.5H3zm0 9.5h4.4l1.5-2 1.2 1.6-2 2.4H3z"/></svg>
+      </button>
+      <button class="cbtn" id="c-prev" aria-label="назад">
+        <svg viewBox="0 0 24 24"><path d="M6 6h2.2v12H6zM20 6v12l-9.4-6z"/></svg>
+      </button>
+      <button class="cbtn cbtn-play" id="c-play" aria-label="играть">
+        <svg id="ic-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="ic-pause" viewBox="0 0 24 24" hidden><path d="M6.5 5h3.5v14H6.5zM14 5h3.5v14H14z"/></svg>
+      </button>
+      <button class="cbtn" id="c-next" aria-label="вперёд">
+        <svg viewBox="0 0 24 24"><path d="M15.8 6H18v12h-2.2zM4 6l9.4 6L4 18z"/></svg>
+      </button>
+      <button class="cbtn" id="c-repeat" aria-label="повтор">
+        <svg viewBox="0 0 24 24"><path d="M7 7h9v2.5L20 6l-4-3.5V5H5v6h2zm10 10H8v-2.5L4 18l4 3.5V19h11v-6h-2z"/></svg>
+        <em class="one" id="rep-one" hidden>1</em>
+      </button>
+    </div>
+
+    <div class="bar-seek">
+      <span class="t" id="t-cur">0:00</span>
+      <div class="seek" id="seek">
+        <div class="seek-buf"></div>
+        <div class="seek-fill" id="seek-fill"></div>
+        <div class="seek-knob" id="seek-knob"></div>
+      </div>
+      <span class="t" id="t-dur">0:00</span>
+    </div>
+  </div>
+
+  <div class="bar-right">
+    <button class="sleep-chip" id="sleep-chip" title="таймер сна — нажми, чтобы отменить">
+      <svg viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9"/></svg>
+      <span id="sleep-left">—</span>
+    </button>
+    <canvas id="mini-eq"></canvas>
+
+    <div class="rate-wrap">
+      <button class="cbtn cbtn-sm rate-btn" id="c-rate" aria-label="скорость">1×</button>
+      <div class="rate-pop" id="rate-pop" hidden>
+        <div class="rate-head">Скорость</div>
+        <div class="rate-grid" id="rate-grid">
+          <button data-v="0.7">0.7×</button>
+          <button data-v="0.8">0.8×</button>
+          <button data-v="0.9">0.9×</button>
+          <button data-v="1">1×</button>
+          <button data-v="1.1">1.1×</button>
+          <button data-v="1.25">1.25×</button>
+          <button data-v="1.5">1.5×</button>
+          <button data-v="2">2×</button>
+        </div>
+        <label class="rng rate-rng">
+          <input type="range" id="r-rate" min="50" max="200" step="1">
+          <em id="r-rate-v">1.00×</em>
+        </label>
+        <label class="sw rate-sw"><input type="checkbox" id="s-pitch"><i></i><span>Менять тон (slowed)</span></label>
+      </div>
+    </div>
+
+    <button class="cbtn cbtn-sm" id="c-ly" aria-label="текст">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h11v2H4zm0 5h16v2H4z"/></svg>
+    </button>
+    <button class="cbtn cbtn-sm" id="c-mute" aria-label="звук">
+      <svg id="ic-vol" viewBox="0 0 24 24"><path d="M4 9h3.5L12 5v14l-4.5-4H4zm11.5-.5a5 5 0 0 1 0 7l-1.2-1.2a3.3 3.3 0 0 0 0-4.6zM18 5.5a9 9 0 0 1 0 13l-1.2-1.3a7.3 7.3 0 0 0 0-10.4z"/></svg>
+      <svg id="ic-mute" viewBox="0 0 24 24" hidden><path d="M4 9h3.5L12 5v14l-4.5-4H4zm12.8-.6 1.4 1.4-1.9 1.9 1.9 1.9-1.4 1.4-1.9-1.9-1.9 1.9-1.4-1.4 1.9-1.9-1.9-1.9 1.4-1.4 1.9 1.9z"/></svg>
+    </button>
+    <div class="vol"><div class="vol-fill" id="vol-fill"></div><div class="vol-knob" id="vol-knob"></div></div>
+  </div>
+</footer>
+
+<!-- плееры сервисов: звук идёт у них, мы только управляем -->
+<div class="stream" id="stream" hidden>
+  <div class="stream-head">
+    <span class="stream-dot"></span>
+    <span id="stream-src">YouTube</span>
+    <button id="stream-close" title="закрыть и вернуться к своим файлам">✕</button>
+  </div>
+  <div class="stream-body">
+    <div id="yt-box"></div>
+    <iframe id="sc-frame" allow="autoplay; encrypted-media" scrolling="no" hidden></iframe>
+  </div>
+</div>
+
+<!-- очередь скачивания: видна с любой вкладки -->
+<div class="dlq" id="dlq" hidden>
+  <div class="dlq-head" id="dlq-head">
+    <span class="dlq-dot" id="dlq-dot"></span>
+    <span class="dlq-title" id="dlq-title">Очередь</span>
+    <button class="dlq-b" id="dlq-pause" title="пауза">
+      <svg viewBox="0 0 24 24"><path d="M6.5 5h3.5v14H6.5zM14 5h3.5v14H14z"/></svg>
+    </button>
+    <button class="dlq-b" id="dlq-clear" title="убрать скачанное">
+      <svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z"/></svg>
+    </button>
+    <button class="dlq-b" id="dlq-fold" title="свернуть">
+      <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+    </button>
+  </div>
+  <div class="dlq-body" id="dlq-body"></div>
+</div>
+
+<!-- студия: карточка картинкой и клип видеофайлом -->
+<div class="studio" id="studio" hidden>
+  <div class="studio-in">
+    <div class="studio-head">
+      <span>Студия</span>
+      <button id="stu-x" title="закрыть">✕</button>
+    </div>
+
+    <div class="studio-body">
+      <div class="studio-prev"><canvas id="stu-canvas"></canvas></div>
+
+      <div class="studio-side">
+        <div class="pick-row">
+          <span class="pick-lab">Формат</span>
+          <div class="pick" id="stu-fmt">
+            <button data-v="story"  title="1080×1920">Сторис</button>
+            <button data-v="square" title="1080×1080">Квадрат</button>
+            <button data-v="wide"   title="1920×1080">Широкий</button>
+          </div>
+        </div>
+
+        <div class="pick-row">
+          <span class="pick-lab">Длина</span>
+          <div class="pick" id="stu-len">
+            <button data-v="15">15 с</button>
+            <button data-v="30">30 с</button>
+            <button data-v="60">60 с</button>
+          </div>
+        </div>
+
+        <p class="hint">Кадр собирается заново, а не снимается с экрана: ни рамки окна,
+           ни боковой панели. Берётся обложка, цвет из неё, спектр и строка текста
+           с той же заливкой, что и в караоке.</p>
+
+        <div class="row-btns">
+          <button class="btn btn-ghost" id="stu-png">Сохранить картинку</button>
+          <button class="btn" id="stu-rec">Записать клип</button>
+        </div>
+
+        <div class="stu-status" id="stu-status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pl-menu" id="pl-menu" hidden></div>
+
+<div class="drop" id="drop">
+  <div class="drop-in">
+    <div class="drop-ic">♫</div>
+    <p>Брось сюда музыку</p>
+    <span>файлы заиграют сразу, папка добавится в библиотеку</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<audio id="audio" preload="metadata"></audio>
+<audio id="prev" preload="none"></audio>
+
+<script src="app.js"></script>
+<script src="studio.js"></script>
+</body>
+</html>
