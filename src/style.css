@@ -369,7 +369,21 @@ a:hover{text-decoration:underline}
 .ly:not(.plain) .ly-item{cursor:pointer}
 .ly:not(.plain) .ly-item:hover{color:#fff;opacity:1;filter:none}
 
-.ly-note{margin-top:12px;font-size:11.5px;color:var(--dim2);min-height:14px}
+/* Откуда взялся текст. Раньше стояла по центру сразу под блоком - а блок
+   высотой в две сотни пикселей и снизу пустой, поэтому подпись висела
+   далеко под последней строкой и читалась как ещё одна, оборванная.
+   Теперь это подпись в правом углу: ширину берём ту же, что у блока,
+   иначе край не совпадёт. */
+.ly-note{
+  width:min(760px,100%);margin:4px auto 0;
+  text-align:right;padding-right:14px;
+  font-size:11px;color:var(--dim2);opacity:.72;min-height:14px;
+  /* "Зеркало" и "Столбики" проходят прямо на этой высоте - тёмный ореол
+     держит подпись читаемой поверх любой графики */
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.8);
+}
+/* сообщения - другое дело: их надо заметить, и они остаются по центру */
+.ly-note.say{text-align:center;padding-right:0;font-size:12.2px;opacity:1;text-shadow:none}
 
 /* ===== раскладки вкладки "Сейчас играет" ===== */
 /* обычная раскладка: обёртки не существуют для вёрстки, всё как было столбиком */
@@ -405,6 +419,9 @@ a:hover{text-decoration:underline}
 #v-now[data-lay="side"] .ly{width:100%;margin-top:0;--ly-h:min(62vh,520px)}
 #v-now[data-lay="apple"] .ly-item,
 #v-now[data-lay="side"] .ly-item{padding-left:0;padding-right:0}
+/* подпись должна кончаться там же, где строки - иначе угол не сойдётся */
+#v-now[data-lay="apple"] .ly-note,
+#v-now[data-lay="side"] .ly-note{width:100%;padding-right:0}
 
 /* только текст: обложка уходит, строки крупнее */
 #v-now[data-lay="text"] .disc-box{display:none}
@@ -413,6 +430,7 @@ a:hover{text-decoration:underline}
 #v-now[data-lay="text"] .ly{
   width:min(880px,100%);--ly-h:min(60vh,560px);--ly-k:1.3;margin-top:18px;
 }
+#v-now[data-lay="text"] .ly-note{width:min(880px,100%)}
 
 /* только обложка: текст спрятан, пластинка крупная */
 #v-now[data-lay="cover"] .ly,

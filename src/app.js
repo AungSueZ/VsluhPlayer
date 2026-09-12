@@ -551,6 +551,15 @@ function tickLyrics() {
   fillLine(t, i);
 }
 
+// строчка под текстом делает два разных дела, и выглядеть они должны по-разному:
+// say - это сообщение, его надо заметить, поэтому по центру;
+// без say - подпись "откуда текст", ей место тихо в углу
+function lyNote(text, say) {
+  const n = $('ly-note');
+  n.textContent = text || '';
+  n.className = 'ly-note' + (say ? ' say' : '');
+}
+
 let lyGen = 0;
 async function loadLyrics(t) {
   const gen = ++lyGen;
@@ -558,19 +567,19 @@ async function loadLyrics(t) {
   $('ly-track').textContent = '';
   $('ly-track').style.transform = '';
   lyClasses();
-  $('ly-note').textContent = '';
+  lyNote('');
   if (!S.cfg.lyrics || !t) return;
 
-  $('ly-note').textContent = 'ищу текст…';
+  lyNote('ищу текст…', true);
   const r = await window.api.lyrics.get({
     artist: t.artist, title: t.title, album: t.album, duration: t.duration, path: t.path
   });
   if (gen !== lyGen) return;          // пока искали, трек сменился
 
-  if (!r || !r.lines?.length) { $('ly-note').textContent = 'текста нет'; return; }
+  if (!r || !r.lines?.length) { lyNote('текста нет', true); return; }
 
   buildLyrics(r);
-  $('ly-note').textContent = (r.synced ? '' : 'текст без тайм-кодов · ') + (r.source || '');
+  lyNote((r.synced ? '' : 'текст без тайм-кодов · ') + (r.source || ''));
 }
 
 /* ===================== библиотека ===================== */
