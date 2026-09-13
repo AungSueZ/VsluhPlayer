@@ -49,7 +49,10 @@
 
     <nav class="nav">
       <div class="nav-lab">Слушать</div>
-      <button class="nav-i on" data-view="now">
+      <button class="nav-i on" data-view="home">
+        <svg viewBox="0 0 24 24"><path d="M12 3 3 10.5V21h6v-6h6v6h6V10.5z"/></svg><span>Главная</span>
+      </button>
+      <button class="nav-i" data-view="now">
         <svg viewBox="0 0 24 24"><path d="M12 3v10.6a4 4 0 1 0 2 3.4V7h5V3z"/></svg><span>Сейчас играет</span>
       </button>
       <button class="nav-i" data-view="library">
@@ -81,6 +84,24 @@
 
   <!-- ---------- контент ---------- -->
   <main class="main">
+
+    <!-- главная: всё собрано из своей же библиотеки, наружу плеер за этим не ходит -->
+    <section class="view" id="v-home">
+      <div class="home-scroll">
+        <div class="home-top">
+          <h2 class="home-hi" id="home-hi">Что послушаем</h2>
+          <p class="home-sub">Всё, что ниже, посчитано на этом компьютере: что ты дослушивал, что отметил и когда включал.</p>
+        </div>
+
+        <div class="home-wave" id="home-wave"></div>
+        <div class="home-shelves" id="home-shelves"></div>
+
+        <div class="empty" id="home-empty" hidden>
+          <p>Пока пусто</p>
+          <span>Добавь папку с музыкой в настройках — или найди что-нибудь в поиске</span>
+        </div>
+      </div>
+    </section>
 
     <!-- сейчас играет -->
     <section class="view on" id="v-now">

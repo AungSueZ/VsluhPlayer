@@ -411,6 +411,7 @@ function paintTrack(t) {
   applyBg(cov);
   accentFrom(cov);
   setMediaSession(t, cov);
+  markHomeCards();
   report();
 }
 
@@ -1346,8 +1347,19 @@ function renderQueue() {
     if (!t) return;
     const i = from + k;
     const d = el('div', 'q-i' + (i === S.pos ? ' on' : ''));
-    d.innerHTML = `<span class="q-n">${i + 1}</span><span class="q-t"></span>`;
-    d.querySelector('.q-t').textContent = t.artist ? `${t.artist} — ${t.title}` : t.title;
+
+    const art = el('span', 'q-art');
+    const u = coverUrl(t);
+    if (u) { const img = el('img'); img.loading = 'lazy'; img.src = u; art.appendChild(img); }
+
+    const m = el('span', 'q-m');
+    const tt = el('span', 'q-t'); tt.textContent = t.title || '—';
+    const aa = el('span', 'q-a'); aa.textContent = t.artist || '';
+    m.append(tt, aa);
+
+    const n = el('span', 'q-n'); n.textContent = i + 1;
+    d.append(n, art, m);
+    d.title = (t.artist ? t.artist + ' — ' : '') + (t.title || '');
     d.onclick = () => { S.pos = i; play(t, false); };
     box.appendChild(d);
   });
@@ -2049,6 +2061,7 @@ function go(view) {
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
   if (view === 'library') renderRows();
+  if (view === 'home') renderHome();
   // живой пример крутится там же, где выбирают подачу - на «Темах»
   if (typeof lpStart === 'function') { if (view === 'themes') lpStart(); else lpStop(); }
   if (view === 'search') setTimeout(() => $('sq').focus(), 60);
@@ -2058,6 +2071,134 @@ function go(view) {
   window.api.settings.set({ view });
 }
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => go(b.dataset.view));
+
+/* ===================== главная =====================
+   Полки собираются из библиотеки и статистики, которые и так лежат на диске.
+   Ничего не спрашивается у сервера - потому тут нет ни «релизов», ни
+   «похожего»: это чужая выдача, а взять её честно неоткуда. Зато «что слушал»
+   и «что отмечал» посчитано на месте и никуда не уходит. */
+
+const WAVE_HINTS = {
+  usual:  'привычное вперемешку с подзабытым',
+  fav:    'любимое и то, что чаще всего включаешь',
+  rare:   'то, что почти не слушал или давно забыл',
+  artist: 'держится рядом с артистом, который играет'
+};
+
+const HOME_SHELVES = [
+  {
+    name: 'Недавно слушал',
+    pick: () => {
+      const last = stats().last || {};
+      return S.tracks.filter(t => last[t.id])
+        .sort((a, b) => last[b.id] - last[a.id]).slice(0, 20);
+    }
+  },
+  {
+    name: 'Любимое',
+    pick: () => {
+      const f = new Set(S.cfg.favorites || []);
+      return S.tracks.filter(t => f.has(t.id)).slice(0, 20);
+    }
+  },
+  {
+    name: 'Чаще всего',
+    pick: () => {
+      const p = stats().plays || {};
+      return S.tracks.filter(t => p[t.id])
+        .sort((a, b) => p[b.id] - p[a.id]).slice(0, 20);
+    }
+  },
+  {
+    name: 'Недавно добавленное',
+    pick: () => S.tracks.slice().sort((a, b) => (b.added || 0) - (a.added || 0)).slice(0, 20)
+  }
+];
+
+function homeCard(t, list) {
+  const c = el('button', 'card' + (S.track && S.track.id === t.id ? ' on' : ''));
+  c.dataset.id = t.id;
+  const art = el('span', 'card-art');
+  const u = coverUrl(t);
+  if (u) { const i = el('img'); i.loading = 'lazy'; i.src = u; art.appendChild(i); }
+  const tt = el('span', 'card-t'); tt.textContent = t.title || '—';
+  const aa = el('span', 'card-a'); aa.textContent = t.artist || T('неизвестный исполнитель');
+  c.append(art, tt, aa);
+  c.title = (t.artist ? t.artist + ' — ' : '') + (t.title || '');
+  c.onclick = () => {
+    if (S.track && S.track.id === t.id && S.source === 'local') { toggle(); return; }
+    setQueue(list.map(x => x.id));
+    play(t);
+  };
+  return c;
+}
+
+function shelf(name, items, make) {
+  const box = el('div', 'shelf');
+  const head = el('div', 'shelf-head');
+  const h = el('h3'); h.textContent = T(name);
+  head.appendChild(h);
+  const row = el('div', 'shelf-row');
+  for (const it of items) row.appendChild(make(it));
+  box.append(head, row);
+  return box;
+}
+
+// подсветить играющую карточку, не пересобирая полки: иначе обложки моргают
+function markHomeCards() {
+  const id = S.track && S.source === 'local' ? S.track.id : null;
+  document.querySelectorAll('#v-home .card[data-id]')
+    .forEach(c => c.classList.toggle('on', c.dataset.id === id));
+}
+
+function renderHome() {
+  const wv = $('home-wave'), box = $('home-shelves');
+  if (!box) return;
+
+  wv.textContent = '';
+  box.textContent = '';
+  show($('home-empty'), !S.tracks.length);
+  if (!S.tracks.length) return;
+
+  // моя волна: четыре характера, каждый считается из твоей же библиотеки
+  const w = wave();
+  for (const mode of ['usual', 'fav', 'rare', 'artist']) {
+    const b = el('button', 'wave-tile' + (w.on && w.mode === mode ? ' on' : ''));
+    const n = el('span', 'wt-n'); n.textContent = T(WAVE_NAMES[mode]);
+    const s = el('span', 'wt-s'); s.textContent = T(WAVE_HINTS[mode]);
+    b.append(n, s);
+    b.onclick = () => { startWave(mode); renderHome(); };
+    wv.appendChild(b);
+  }
+
+  for (const sh of HOME_SHELVES) {
+    const items = sh.pick();
+    if (items.length) box.appendChild(shelf(sh.name, items, t => homeCard(t, items)));
+  }
+
+  // плейлисты - свои же, с обложкой первого трека
+  const pls = S.cfg.playlists || [];
+  if (pls.length) {
+    box.appendChild(shelf('Плейлисты', pls, p => {
+      const c = el('button', 'card');
+      const art = el('span', 'card-art');
+      const u = plCover(p);
+      if (u) { const i = el('img'); i.loading = 'lazy'; i.src = u; art.appendChild(i); }
+      const tt = el('span', 'card-t'); tt.textContent = p.name || T('Плейлист');
+      const aa = el('span', 'card-a'); aa.textContent = TF`${(p.tracks || []).length} треков`;
+      c.append(art, tt, aa);
+      c.onclick = () => {
+        S.cfg.libTab = p.id;
+        window.api.settings.set({ libTab: p.id });
+        renderChips();
+        renderRows();
+        renderPlHead();
+        go('library');
+      };
+      return c;
+    }));
+  }
+}
 
 /* ===================== другие плееры ===================== */
 function renderSys() {
@@ -3556,6 +3697,7 @@ function sleepNow() {
 function relabel() {
   const go = (name, fn) => { try { fn(); } catch (e) { console.error('[' + name + ']', e); } };
   go('строки', renderRows);
+  go('главная', renderHome);
   go('очередь', renderQueue);
   go('вкладки', renderChips);
   go('шапка плейлиста', renderPlHead);
