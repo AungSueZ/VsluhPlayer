@@ -19,6 +19,28 @@
   --side:232px;
   --r:14px;
   --ease:cubic-bezier(.22,.61,.36,1);
+
+}
+
+/* Множитель длительности для всего, что движется в интерфейсе. Ноль - и
+   анимации схлопываются в ноль секунд, а не выключаются по одной.
+
+   Времена считаются здесь же, на body: переменная подставляется там, где
+   объявлена, и если написать их в :root - они навсегда возьмут --motion
+   оттуда, сколько его потом ни меняй ниже. */
+body{
+  --motion:1;
+  --t-fast:calc(var(--motion) * .16s);
+  --t-mid:calc(var(--motion) * .24s);
+  --t-slow:calc(var(--motion) * .4s);
+}
+body[data-motion="calm"]{--motion:.6}
+body[data-motion="off"]{--motion:0}
+
+/* Человек попросил систему не двигать картинки - слушаемся молча,
+   какой бы вид ни стоял в настройках */
+@media (prefers-reduced-motion:reduce){
+  body,body[data-motion]{--motion:0}
 }
 
 
@@ -209,11 +231,19 @@ a:hover{text-decoration:underline}
 
 /* ===== контент ===== */
 .main{flex:1;min-width:0;position:relative}
+/* Раздел появляется с лёгким подъёмом. Уход не анимируем: разделы лежат друг
+   на друге, и уходящий, догорая поверх нового, мазал бы картинку. */
 .view{
   position:absolute;inset:0;display:none;flex-direction:column;
-  opacity:0;transition:opacity .25s var(--ease);
+  opacity:0;
 }
-.view.on{display:flex;opacity:1}
+.view.on{
+  display:flex;opacity:1;transform:none;
+  transition:opacity var(--t-mid) var(--ease),transform var(--t-mid) var(--ease);
+}
+@starting-style{
+  .view.on{opacity:0;transform:translateY(7px)}
+}
 
 /* ---- сейчас играет ---- */
 .now-wrap{
@@ -255,8 +285,11 @@ a:hover{text-decoration:underline}
 #v-now:hover .full-btn{opacity:1}
 .full-btn:hover{color:var(--ink);background:var(--glass2)}
 @keyframes spin{to{transform:rotate(360deg)}}
-.disc img{width:100%;height:100%;object-fit:cover;display:none}
-.disc img.on{display:block}
+.disc img{
+  width:100%;height:100%;object-fit:cover;display:block;
+  opacity:0;transition:opacity var(--t-slow) var(--ease);
+}
+.disc img.on{opacity:1}
 .disc-note{font-size:44px;color:rgba(255,255,255,.12)}
 .disc img.on ~ .disc-note{display:none}
 .disc-hole{
@@ -1030,8 +1063,11 @@ body.paused .row-bars i{animation-play-state:paused}
   background:var(--glass2);display:grid;place-items:center;color:var(--dim2);font-size:18px;
   box-shadow:0 6px 20px rgba(0,0,0,.5);
 }
-.bar-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
-.bar-art img.on{display:block}
+.bar-art img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;
+  opacity:0;transition:opacity var(--t-slow) var(--ease);
+}
+.bar-art img.on{opacity:1}
 .bar-meta{flex:1;min-width:0}
 .bar-title{font-size:13.2px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar-artist{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
@@ -1072,16 +1108,23 @@ body.paused .row-bars i{animation-play-state:paused}
   content:"";position:absolute;left:0;right:0;height:4px;border-radius:4px;
   background:rgba(255,255,255,.1);
 }
+/* Время приходит рывками, четыре раза в секунду - полоса дёргалась бы вместе
+   с ним. Линейный переход ровно на этот промежуток сглаживает её в движение.
+   На перемотке и смене трека переход снимается классом jump: там прыжок
+   честнее, чем проезд через полэкрана. */
 .seek-fill{
   position:absolute;left:0;height:4px;border-radius:4px;width:0;
   background:linear-gradient(90deg,rgba(var(--ac),.85),rgb(var(--ac)));
   box-shadow:0 0 12px rgba(var(--ac),.55);
+  transition:width calc(var(--motion) * .26s) linear;
 }
 .seek-knob{
   position:absolute;width:11px;height:11px;border-radius:50%;background:#fff;left:0;
-  transform:translateX(-50%) scale(0);transition:transform .16s var(--ease);
+  transform:translateX(-50%) scale(0);
+  transition:transform var(--t-fast) var(--ease),left calc(var(--motion) * .26s) linear;
   box-shadow:0 0 10px rgba(0,0,0,.6);
 }
+.seek.jump .seek-fill,.seek.jump .seek-knob{transition:none}
 .seek:hover .seek-knob,.seek.drag .seek-knob{transform:translateX(-50%) scale(1)}
 
 .bar-right{width:var(--side);flex:none;display:flex;align-items:center;justify-content:flex-end;gap:6px}
@@ -1643,6 +1686,44 @@ body.full .full-btn{opacity:.5}
 }
 .card.on .card-t{color:rgb(var(--ac))}
 .card.on .card-art{border-color:rgba(var(--ac),.5)}
+
+/* ===== движение =====
+   Всё тут держится на прозрачности и сдвиге: их браузер считает на видеокарте
+   и не заставляет пересчитывать раскладку. Длительности идут от --motion,
+   поэтому «спокойно» и «без анимаций» выключают их разом. */
+
+/* название и артист при смене трека */
+@keyframes swapIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.swap{animation:swapIn var(--t-mid) var(--ease) both}
+
+/* карточки на полках выходят волной, а не все разом */
+@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{animation:cardIn var(--t-mid) var(--ease) both;animation-delay:calc(var(--i,0) * 26ms)}
+.wave-tile{animation:cardIn var(--t-mid) var(--ease) both;animation-delay:calc(var(--i,0) * 30ms)}
+
+body[data-motion="off"] :is(.swap,.card,.wave-tile){animation:none}
+body[data-motion="off"] .nav-i.on::before{animation:none}
+
+/* всплывающие окошки выезжают снизу и уходят туда же */
+.rate-pop,.eq-pop{
+  opacity:0;transform:translateY(8px) scale(.97);transform-origin:bottom right;
+  transition:opacity var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),
+             display var(--t-fast) allow-discrete;
+}
+.rate-pop:not([hidden]),.eq-pop:not([hidden]){opacity:1;transform:none}
+@starting-style{
+  .rate-pop:not([hidden]),.eq-pop:not([hidden]){opacity:0;transform:translateY(8px) scale(.97)}
+}
+
+/* кнопки отзываются на нажатие - без этого интерфейс кажется мёртвым */
+.cbtn{transition:transform var(--t-fast) var(--ease),background-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.cbtn:active{transform:scale(.9)}
+.cbtn-play:active{transform:scale(.93)}
+.card:active .card-art,.sq-i:active .sq-art{transform:scale(.985)}
+
+/* полоска у выбранного пункта меню вырастает, а не возникает */
+@keyframes navBar{from{transform:translateY(-50%) scaleY(.2);opacity:0}to{transform:translateY(-50%) scaleY(1);opacity:1}}
+.nav-i.on::before{animation:navBar var(--t-mid) var(--ease) both}
 
 /* ===== эквалайзер в нижней панели ===== */
 .eq-wrap{position:relative;flex:none}

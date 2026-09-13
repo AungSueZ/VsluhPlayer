@@ -392,6 +392,37 @@ function play(track, fromQueue, soft) {
   if (!track.remote) window.api.settings.set({ lastTrack: track.id });
 }
 
+/* Обложку подменяем проявлением, а не рывком: сначала тянем новую в памяти и
+   только по готовности отдаём в <img>. Иначе на её месте мигает пустота, а на
+   медленном диске это заметно. */
+function swapArt(img, url) {
+  if (!img || img.dataset.u === (url || '')) return;
+  img.dataset.u = url || '';
+  if (!url) { img.classList.remove('on'); img.removeAttribute('src'); return; }
+
+  const pre = new Image();
+  pre.onload = () => {
+    if (img.dataset.u !== url) return;      // пока грузилась, трек успел смениться
+    img.src = url;
+    img.classList.add('on');
+  };
+  pre.onerror = () => { if (img.dataset.u === url) img.classList.remove('on'); };
+  pre.src = url;
+}
+
+// перезапуск анимации: без снятия класса второй раз она не проигрывается
+function bump(...ids) {
+  for (const id of ids) {
+    const n = $(id);
+    if (!n) continue;
+    n.classList.remove('swap');
+    void n.offsetWidth;
+    n.classList.add('swap');
+  }
+}
+
+let lastPainted = null;
+
 function paintTrack(t) {
   const cov = coverUrl(t);
   const title = t.title || '—';
@@ -404,10 +435,9 @@ function paintTrack(t) {
   $('now-src').hidden = true;
   document.title = `${artist} — ${title}`;
 
-  for (const img of [$('now-art'), $('bar-img')]) {
-    if (cov) { img.src = cov; img.classList.add('on'); }
-    else { img.removeAttribute('src'); img.classList.remove('on'); }
-  }
+  swapArt($('now-art'), cov);
+  swapArt($('bar-img'), cov);
+  if (t && t.id !== lastPainted) { lastPainted = t.id; bump('now-title', 'now-artist', 'bar-title', 'bar-artist'); }
   applyBg(cov);
   accentFrom(cov);
   setMediaSession(t, cov);
@@ -503,10 +533,18 @@ function paintPlay() {
   report();
 }
 
+let lastPct = 0;
+
 function paintProgress() {
   if (S.seeking) return;
   const d = curDur(), c = curTime();
   const p = d ? Math.min(100, c / d * 100) : 0;
+
+  // ровный ход времени сглаживаем, прыжок - нет: проезд полосы через полэкрана
+  // после перемотки выглядит как враньё
+  $('seek').classList.toggle('jump', p < lastPct - 0.05 || p - lastPct > 3);
+  lastPct = p;
+
   $('seek-fill').style.width = p + '%';
   $('seek-knob').style.left = p + '%';
   // тем же числом заполняется нижняя панель, когда прогресс показан заливкой
@@ -2139,7 +2177,12 @@ function shelf(name, items, make) {
   const h = el('h3'); h.textContent = T(name);
   head.appendChild(h);
   const row = el('div', 'shelf-row');
-  for (const it of items) row.appendChild(make(it));
+  items.forEach((it, i) => {
+    const c = make(it);
+    // задержка волной, но только для первых - дальше карточки всё равно за краем
+    c.style.setProperty('--i', Math.min(i, 9));
+    row.appendChild(c);
+  });
   box.append(head, row);
   return box;
 }
@@ -2162,14 +2205,15 @@ function renderHome() {
 
   // моя волна: четыре характера, каждый считается из твоей же библиотеки
   const w = wave();
-  for (const mode of ['usual', 'fav', 'rare', 'artist']) {
+  ['usual', 'fav', 'rare', 'artist'].forEach((mode, i) => {
     const b = el('button', 'wave-tile' + (w.on && w.mode === mode ? ' on' : ''));
+    b.style.setProperty('--i', i);
     const n = el('span', 'wt-n'); n.textContent = T(WAVE_NAMES[mode]);
     const s = el('span', 'wt-s'); s.textContent = T(WAVE_HINTS[mode]);
     b.append(n, s);
     b.onclick = () => { startWave(mode); renderHome(); };
     wv.appendChild(b);
-  }
+  });
 
   for (const sh of HOME_SHELVES) {
     const items = sh.pick();
@@ -2520,6 +2564,7 @@ function applyTheme() {
 
   document.body.dataset.barround = th.barRound ? '1' : '0';
   document.body.dataset.barprog = th.barProg || 'line';
+  document.body.dataset.motion = th.motion || 'full';
   document.body.dataset.side = th.side || 'normal';
   document.body.dataset.sideq = th.sideQueue === false ? '0' : '1';
   syncNarrow();
@@ -2711,7 +2756,7 @@ function offPreset() {
 const LOOK_KEYS = ['accent', 'particles', 'lyricsTheme', 'lyricsSize', 'lyricsGlow', 'lyricsBlur'];
 const LOOK_THEME = ['fontUi', 'fontLy', 'accentColor', 'viz', 'vizPower', 'vizSpeed',
                     'vizAlpha', 'vizAuto', 'layout', 'disc', 'spin', 'beat',
-                    'side', 'sideQueue', 'bg', 'bgUrl', 'bgBlur', 'bgDim'];
+                    'side', 'sideQueue', 'motion', 'bg', 'bgUrl', 'bgBlur', 'bgDim'];
 
 function currentLook() {
   const t = S.cfg.theme || {};
@@ -3841,6 +3886,7 @@ function wireThemes() {
   });
 
   const pSide = bindPick('p-side', () => th().side || 'normal', v => setTheme({ side: v }));
+  const pMot  = bindPick('p-motion', () => th().motion || 'full', v => setTheme({ motion: v }));
   const pLay  = bindPick('p-lay',  () => th().layout || 'stack', v => setLayout(v));
   const pViz  = bindPick('p-viz',  () => th().viz  || 'ring',  v => setTheme({ viz: v }));
   const pDisc = bindPick('p-disc', () => th().disc || 'vinyl', v => setTheme({ disc: v }));
@@ -3935,7 +3981,7 @@ function wireThemes() {
 
   repaintTheme = () => {
     fUi(); fLy(); paintPal();
-    pSide(); pLay(); pViz(); pDisc(); pBg(); pAuto();
+    pSide(); pMot(); pLay(); pViz(); pDisc(); pBg(); pAuto();
     pSize(); pWgt(); pBarP(); pTint();
     rPow(); rSpd(); rAl(); rBlur(); rDim();
     swSpin(); swBeat(); swPx(); swAc(); swBarR(); swSideQ();
