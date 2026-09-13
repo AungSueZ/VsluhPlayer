@@ -1612,12 +1612,13 @@ body.full .full-btn{opacity:.5}
   font-family:var(--font-ly);font-size:17px;font-weight:600;
   letter-spacing:-.2px;margin:0;color:var(--ink);text-transform:none;
 }
+/* Свою полосу прокрутки тут не задаём: у приложения уже есть общая, тонкая и
+   полупрозрачная. Стоило написать scrollbar-width - и Chromium перестал
+   слушать её вовсе, подсунув системную, белую во всю ширину. */
 .shelf-row{
   display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;
-  padding:2px 32px 10px;scrollbar-width:thin;
+  padding:2px 32px 10px;
 }
-.shelf-row::-webkit-scrollbar{height:7px}
-.shelf-row::-webkit-scrollbar-thumb{background:var(--glass2);border-radius:7px}
 
 .card{
   flex:none;width:142px;display:flex;flex-direction:column;gap:2px;
