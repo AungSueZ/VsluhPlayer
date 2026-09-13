@@ -36,7 +36,19 @@
 
   <!-- ---------- боковое меню ---------- -->
   <aside class="side">
+    <!-- кто ты: карточка наверху, как в любом плеере с аккаунтом.
+         только аккаунта нет - всё это лежит на твоём же компьютере -->
+    <button class="side-me" data-view="profile" id="side-me">
+      <span class="me-ava" id="me-ava"><img id="me-img" alt=""></span>
+      <span class="me-txt">
+        <span class="me-name" id="me-name">Профиль</span>
+        <span class="me-sub" id="me-sub">имя, аватар, соц-сети</span>
+      </span>
+      <svg class="me-go" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7-1.4-1.4L13.2 12 7.6 6.4z"/></svg>
+    </button>
+
     <nav class="nav">
+      <div class="nav-lab">Слушать</div>
       <button class="nav-i on" data-view="now">
         <svg viewBox="0 0 24 24"><path d="M12 3v10.6a4 4 0 1 0 2 3.4V7h5V3z"/></svg><span>Сейчас играет</span>
       </button>
@@ -46,13 +58,8 @@
       <button class="nav-i" data-view="search">
         <svg viewBox="0 0 24 24"><path d="M10 3a7 7 0 1 0 4.2 12.6l5.1 5.1 1.4-1.4-5.1-5.1A7 7 0 0 0 10 3m0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10"/></svg><span>Поиск</span>
       </button>
-      <button class="nav-i" data-view="system">
-        <svg viewBox="0 0 24 24"><path d="M3 5h18v11H3zm7 13h4l1 2H9z"/></svg><span>В системе</span>
-        <em class="nav-dot" id="sys-dot" hidden></em>
-      </button>
-      <button class="nav-i" data-view="profile">
-        <svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-4.4 0-8 2.4-8 5.3V21h16v-1.7c0-2.9-3.6-5.3-8-5.3"/></svg><span>Профиль</span>
-      </button>
+
+      <div class="nav-lab">Оформление</div>
       <button class="nav-i" data-view="themes">
         <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c.8 0 1.5-.7 1.5-1.5 0-.4-.2-.7-.4-1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4.4-4-8-9-8m-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m3.5 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3"/></svg><span>Темы</span>
       </button>
@@ -64,6 +71,11 @@
     <div class="side-foot">
       <div class="queue-head">Очередь <em id="q-count">0</em></div>
       <div class="queue" id="queue"></div>
+      <!-- чужие плееры - дело редкое, поэтому внизу и не мозолит глаза -->
+      <button class="nav-i nav-sys" data-view="system">
+        <svg viewBox="0 0 24 24"><path d="M3 5h18v11H3zm7 13h4l1 2H9z"/></svg><span>В системе</span>
+        <em class="nav-dot" id="sys-dot" hidden></em>
+      </button>
     </div>
   </aside>
 
@@ -372,6 +384,53 @@
         </div>
 
         <div class="set-block">
+          <h3>Текст песни</h3>
+          <!-- живой пример: крутится сам и слушается тех же настроек, что и настоящий текст -->
+          <div class="lyprev" id="lyprev">
+            <div class="ly" id="lyp"><div class="ly-track" id="lyp-track"></div></div>
+            <span class="lyprev-tag">живой пример</span>
+          </div>
+
+          <div class="pick-row">
+            <span class="pick-lab">Подача</span>
+            <div class="pick pick-wrap" id="p-theme">
+              <div class="viz-group">Спокойно</div>
+              <button data-v="soft"     title="строки плавно проезжают, соседние гаснут">Мягко</button>
+              <button data-v="focus"    title="только текущая строка, крупно, остальное в размытии">Фокус</button>
+              <button data-v="feed"     title="весь текст лентой, как в Apple Music">Лента</button>
+              <button data-v="echo"     title="спетые строки уплывают в сторону и размываются">Эхо</button>
+
+              <div class="viz-group">Заливкой по словам</div>
+              <button data-v="karaoke"  title="строка заливается цветом по мере пения">Караоке</button>
+              <button data-v="neon"     title="буквы стоят контуром и загораются изнутри">Неон</button>
+              <button data-v="marker"   title="строку закрашивают маркером, слово за словом">Маркер</button>
+              <button data-v="type"     title="строка печатается по буквам">Машинка</button>
+
+              <div class="viz-group">С движением</div>
+              <button data-v="wave"     title="слово приподнимается, пока его тянут">Волна</button>
+              <button data-v="scatter"  title="слова разлетелись и слетаются на место">Разлёт</button>
+              <button data-v="word"     title="на экране только то слово, которое поют сейчас">Слово</button>
+              <button data-v="orbit"    title="строки лежат на дуге и проворачиваются мимо">Орбита</button>
+              <button data-v="slide"    title="спетое уезжает влево, предстоящее ждёт справа">Слайд</button>
+              <button data-v="breath"   title="текущая строка тихо пульсирует">Дыхание</button>
+            </div>
+          </div>
+
+          <div class="pick-row">
+            <span class="pick-lab">Размер</span>
+            <div class="pick" id="p-size">
+              <button data-v="sm">Мелкий</button>
+              <button data-v="md">Обычный</button>
+              <button data-v="lg">Крупный</button>
+            </div>
+          </div>
+
+          <label class="sw"><input type="checkbox" id="s-lyglow"><i></i><span>Свечение текущей строки</span></label>
+          <label class="sw"><input type="checkbox" id="s-lyblur"><i></i><span>Размывать соседние строки</span></label>
+
+        </div>
+
+        <div class="set-block">
           <h3>Нижняя панель</h3>
           <div class="pick-row">
             <span class="pick-lab">Прогресс</span>
@@ -581,49 +640,6 @@
           <h3>Текст песни</h3>
           <label class="sw"><input type="checkbox" id="s-lyrics"><i></i><span>Искать текст на lrclib.net</span></label>
 
-          <!-- живой пример: крутится сам и слушается тех же настроек, что и настоящий текст -->
-          <div class="lyprev" id="lyprev">
-            <div class="ly" id="lyp"><div class="ly-track" id="lyp-track"></div></div>
-            <span class="lyprev-tag">живой пример</span>
-          </div>
-
-          <div class="pick-row">
-            <span class="pick-lab">Подача</span>
-            <div class="pick pick-wrap" id="p-theme">
-              <div class="viz-group">Спокойно</div>
-              <button data-v="soft"     title="строки плавно проезжают, соседние гаснут">Мягко</button>
-              <button data-v="focus"    title="только текущая строка, крупно, остальное в размытии">Фокус</button>
-              <button data-v="feed"     title="весь текст лентой, как в Apple Music">Лента</button>
-              <button data-v="echo"     title="спетые строки уплывают в сторону и размываются">Эхо</button>
-
-              <div class="viz-group">Заливкой по словам</div>
-              <button data-v="karaoke"  title="строка заливается цветом по мере пения">Караоке</button>
-              <button data-v="neon"     title="буквы стоят контуром и загораются изнутри">Неон</button>
-              <button data-v="marker"   title="строку закрашивают маркером, слово за словом">Маркер</button>
-              <button data-v="type"     title="строка печатается по буквам">Машинка</button>
-
-              <div class="viz-group">С движением</div>
-              <button data-v="wave"     title="слово приподнимается, пока его тянут">Волна</button>
-              <button data-v="scatter"  title="слова разлетелись и слетаются на место">Разлёт</button>
-              <button data-v="word"     title="на экране только то слово, которое поют сейчас">Слово</button>
-              <button data-v="orbit"    title="строки лежат на дуге и проворачиваются мимо">Орбита</button>
-              <button data-v="slide"    title="спетое уезжает влево, предстоящее ждёт справа">Слайд</button>
-              <button data-v="breath"   title="текущая строка тихо пульсирует">Дыхание</button>
-            </div>
-          </div>
-
-          <div class="pick-row">
-            <span class="pick-lab">Размер</span>
-            <div class="pick" id="p-size">
-              <button data-v="sm">Мелкий</button>
-              <button data-v="md">Обычный</button>
-              <button data-v="lg">Крупный</button>
-            </div>
-          </div>
-
-          <label class="sw"><input type="checkbox" id="s-lyglow"><i></i><span>Свечение текущей строки</span></label>
-          <label class="sw"><input type="checkbox" id="s-lyblur"><i></i><span>Размывать соседние строки</span></label>
-
           <p class="hint">Можно положить свой <b>.lrc</b> рядом с треком — он будет главнее интернета.</p>
           <label class="num">Сдвиг текста, секунд
             <input type="number" id="s-lyoff" step="0.1" min="-10" max="10">
@@ -699,24 +715,6 @@
              Выравнивание слушает, насколько трек громкий, и подводит его к общему уровню; правка ограничена
              вдвое в обе стороны, так что тихие места останутся тихими. И то и другое работает со своих файлов:
              у YouTube и SoundCloud звук идёт внутри их плеера, туда нам хода нет.</p>
-        </div>
-
-        <div class="set-block">
-          <h3>Эквалайзер</h3>
-          <label class="sw"><input type="checkbox" id="s-eqon"><i></i><span>Включить</span></label>
-          <div class="pick-row">
-            <span class="pick-lab">Пресет</span>
-            <div class="pick" id="p-eq">
-              <button data-v="flat">Плоский</button>
-              <button data-v="bass">Бас</button>
-              <button data-v="vocal">Вокал</button>
-              <button data-v="bright">Яркий</button>
-              <button data-v="club">Клуб</button>
-              <button data-v="night">Ночь</button>
-            </div>
-          </div>
-          <div class="eqbars" id="eqbars"></div>
-          <p class="hint">Тяни полосы мышкой или колесом. Двойной клик по полосе — обнулить её.</p>
         </div>
 
         <div class="set-block">
@@ -886,6 +884,28 @@
           <em id="r-rate-v">1.00×</em>
         </label>
         <label class="sw rate-sw"><input type="checkbox" id="s-pitch"><i></i><span>Менять тон (slowed)</span></label>
+      </div>
+    </div>
+
+    <!-- эквалайзер: он про звук, а не про настройки, поэтому живёт рядом с громкостью -->
+    <div class="eq-wrap">
+      <button class="cbtn cbtn-sm eq-btn" id="c-eq" aria-label="эквалайзер" title="эквалайзер">
+        <svg viewBox="0 0 24 24"><path d="M5 3h2v6H5zm0 8h2v10H5zM11 3h2v12h-2zm0 14h2v4h-2zM17 3h2v4h-2zm0 6h2v12h-2zM3 9h6v2H3zm6 6h6v2H9zm6-10h6v2h-6z"/></svg>
+        <em class="eq-on" id="eq-on-dot" hidden></em>
+      </button>
+      <div class="eq-pop" id="eq-pop" hidden>
+        <div class="rate-head">Эквалайзер</div>
+        <label class="sw"><input type="checkbox" id="s-eqon"><i></i><span>Включить</span></label>
+        <div class="pick" id="p-eq">
+          <button data-v="flat">Плоский</button>
+          <button data-v="bass">Бас</button>
+          <button data-v="vocal">Вокал</button>
+          <button data-v="bright">Яркий</button>
+          <button data-v="club">Клуб</button>
+          <button data-v="night">Ночь</button>
+        </div>
+        <div class="eqbars" id="eqbars"></div>
+        <p class="hint">Тяни полосы мышкой или колесом. Двойной клик по полосе — обнулить её.</p>
       </div>
     </div>
 

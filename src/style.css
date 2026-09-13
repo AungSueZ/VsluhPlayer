@@ -120,7 +120,41 @@ a:hover{text-decoration:underline}
   background:var(--sidebg);
   backdrop-filter:blur(18px);
 }
-.nav{padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+/* ---- кто ты: карточка в самом верху панели ----
+   аккаунта в плеере нет, но место для "себя" всё равно первое: так привычно,
+   и заодно видно титул, который заработался */
+.side-me{
+  display:flex;align-items:center;gap:10px;
+  margin:12px 10px 2px;padding:8px 10px;border-radius:12px;
+  border:1px solid transparent;color:var(--dim);text-align:left;
+  transition:background-color .16s var(--ease),border-color .16s var(--ease);
+}
+.side-me:hover{background:var(--glass)}
+.side-me.on{background:rgba(var(--ac),.13);border-color:rgba(var(--ac),.26)}
+.me-ava{
+  position:relative;width:32px;height:32px;border-radius:50%;flex:none;overflow:hidden;
+  background:var(--glass2);border:1px solid var(--line);
+  display:grid;place-items:center;
+}
+.me-ava::after{content:"♪";font-size:13px;color:var(--dim2)}
+.me-ava img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.me-ava img.on{display:block}
+.me-txt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.32}
+.me-name{
+  font-size:13.5px;font-weight:600;color:var(--me-c,var(--ink));
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.me-sub{font-size:11px;color:var(--dim2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-go{width:14px;height:14px;flex:none;opacity:.35;transition:opacity .16s var(--ease)}
+.side-me:hover .me-go,.side-me.on .me-go{opacity:.7}
+
+.nav{padding:6px 10px 14px;display:flex;flex-direction:column;gap:2px}
+
+/* подпись группы: делит панель на части без лишних линеек */
+.nav-lab{
+  padding:14px 12px 5px;font-size:10.5px;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--dim2);
+}
 .nav-i{
   position:relative;display:flex;align-items:center;gap:11px;
   padding:9px 12px;border-radius:10px;color:var(--dim);
@@ -142,6 +176,11 @@ a:hover{text-decoration:underline}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 .side-foot{flex:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid var(--line);padding-top:12px}
+
+/* чужие плееры: дело редкое, поэтому в самом низу, под очередью */
+.nav-sys{flex:none;margin:0 8px 8px;border-top:1px solid var(--line);border-radius:0 0 10px 10px;padding-top:12px}
+.nav-sys.on::before{display:none}
+.nav-sys.on{border-radius:10px;border-top-color:transparent}
 .queue-head{
   padding:0 18px 8px;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;
   color:var(--dim2);display:flex;justify-content:space-between;
@@ -888,12 +927,18 @@ body.paused .row-bars i{animation-play-state:paused}
 .sys-btns .cbtn{width:34px;height:34px}
 
 /* ---- настройки ---- */
-.set-scroll{flex:1;min-height:0;overflow-y:auto;padding:26px 32px 40px;max-width:760px}
+.set-scroll{flex:1;min-height:0;overflow-y:auto;padding:26px 32px 40px;max-width:880px}
 .set-scroll,.sys-list,.sq-scroll,.queue,.dlq-body,.studio-body{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){
   .set-scroll,.sys-list,.sq-scroll,.queue,.dlq-body,.studio-body{scroll-behavior:auto}
 }
-.set-block{margin-bottom:30px}
+/* Раздел настроек - карточка, а не просто отступ. Так длинная страница
+   читается кусками: видно, где кончается одно и начинается другое, и заголовок
+   перестал быть единственной опорой. */
+.set-block{
+  margin-bottom:14px;padding:18px 20px 20px;
+  background:var(--glass);border:1px solid var(--line);border-radius:14px;
+}
 .set-block h3{
   font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim2);
   margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--line);
@@ -1501,6 +1546,29 @@ body.full .full-btn{opacity:.5}
 .rate-sw i::after{width:12px;height:12px;top:2px}
 .rate-sw input:checked + i::after{left:17px}
 
+/* ===== эквалайзер в нижней панели ===== */
+.eq-wrap{position:relative;flex:none}
+.eq-btn{position:relative}
+.eq-btn.act{color:rgb(var(--ac));background:rgba(var(--ac),.16)}
+/* точка говорит, что эквалайзер включён, даже когда окошко закрыто */
+.eq-on{
+  position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;
+  background:rgb(var(--ac));box-shadow:0 0 7px rgba(var(--ac),.9);
+}
+.eq-pop{
+  position:absolute;bottom:calc(100% + 12px);right:-6px;width:374px;z-index:50;
+  padding:14px;border-radius:13px;
+  background:rgba(18,16,24,.97);border:1px solid var(--line);
+  backdrop-filter:blur(24px);box-shadow:0 16px 46px rgba(0,0,0,.65);
+}
+.eq-pop .sw{padding:2px 0 10px;font-size:12.5px}
+.eq-pop .sw i{width:32px;height:18px}
+.eq-pop .sw i::after{width:12px;height:12px;top:2px}
+.eq-pop .sw input:checked + i::after{left:17px}
+.eq-pop .pick{flex-wrap:wrap}
+.eq-pop .eqbars{padding:12px 10px 6px}
+.eq-pop .hint{margin:8px 0 0;font-size:11px}
+
 /* ===== конфиденциальность ===== */
 .priv{
   display:flex;flex-direction:column;gap:1px;margin:14px 0 4px;
@@ -1532,9 +1600,16 @@ body.full .full-btn{opacity:.5}
 }
 @media (max-width:880px){
   .side{width:60px;--side:60px}
-  .nav-i span,.side-foot{display:none}
+  .nav-i span,.nav-lab,.me-txt,.me-go,.queue-head,.queue{display:none}
   .nav-i{justify-content:center;padding:11px}
+  /* очередь прячем, а «В системе» остаётся - иначе до неё было бы не добраться */
+  .side-foot{flex:none;margin-top:auto;border-top:none;padding-top:0}
+  .nav-sys{border-top:none;padding:11px;margin:0 8px 8px}
+  /* от карточки остаётся один аватар - но щёлкнуть по нему всё так же можно */
+  .side-me{justify-content:center;margin:12px 8px 4px;padding:8px}
+  .nav{padding-top:2px}
   .bar-now{width:auto;flex:1}
   .bar-right{width:auto}
   #mini-eq{display:none}
+  .eq-pop{width:min(374px,calc(100vw - 24px))}
 }

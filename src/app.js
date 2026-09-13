@@ -2046,17 +2046,18 @@ $('sq-x').onclick = () => {
 /* ===================== вкладки ===================== */
 function go(view) {
   S.view = view;
-  document.querySelectorAll('.nav-i').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
   if (view === 'library') renderRows();
-  if (typeof lpStart === 'function') { if (view === 'settings') lpStart(); else lpStop(); }
+  // живой пример крутится там же, где выбирают подачу - на «Темах»
+  if (typeof lpStart === 'function') { if (view === 'themes') lpStart(); else lpStop(); }
   if (view === 'search') setTimeout(() => $('sq').focus(), 60);
   else if (sqPlaying) stopPreview();
   // пока вкладка скрыта, размеры нулевые - пересчитываем при показе
   if (view === 'now') requestAnimationFrame(() => { sizeViz(); centerLyrics(LY.cur, true); });
   window.api.settings.set({ view });
 }
-document.querySelectorAll('.nav-i').forEach(b => b.onclick = () => go(b.dataset.view));
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => go(b.dataset.view));
 
 /* ===================== другие плееры ===================== */
 function renderSys() {
@@ -2794,6 +2795,23 @@ function renderProfile() {
   renderSoc();
   renderProfStats();
   renderTitles();
+  paintSideMe(p, pic);
+}
+
+// та же карточка, только маленькая - наверху боковой панели
+function paintSideMe(p, pic) {
+  const img = $('me-img');
+  if (!img) return;
+  if (pic) { img.src = pic; img.classList.add('on'); }
+  else { img.removeAttribute('src'); img.classList.remove('on'); }
+
+  const name = (p.name || '').trim();
+  const ttl = (p.title || '').trim();
+  const tag = (p.tag || '').trim();
+  $('me-name').textContent = name || T('Профиль');
+  $('me-name').style.setProperty('--me-c', p.color || '');
+  // под именем показываем титул, а если его нет - короткое имя или подсказку
+  $('me-sub').textContent = ttl || (tag ? '@' + tag : T('имя, аватар, соц-сети'));
 }
 
 function renderProfStats() {
@@ -3469,9 +3487,18 @@ function wireEq() {
   swEq = bindSwitch('s-eqon', () => e.on, v => {
     e.on = v;
     applyEq();
+    paintEqBtn();
     window.api.settings.set({ eq: e });
     toast(v ? 'Эквалайзер включён' : 'Эквалайзер выключен');
   });
+  paintEqBtn();
+}
+
+// кнопка в нижней панели: подсвечена и с точкой, пока эквалайзер включён
+function paintEqBtn() {
+  const on = !!(S.cfg.eq || {}).on;
+  $('c-eq').classList.toggle('act', on);
+  show($('eq-on-dot'), on);
 }
 
 /* ---- таймер сна ---- */
@@ -4007,9 +4034,16 @@ function wireRate() {
   $('c-rate').onclick = e => {
     e.stopPropagation();
     show($('rate-pop'), $('rate-pop').hasAttribute('hidden'));
+    show($('eq-pop'), false);          // два окошка рядом - показываем по одному
+  };
+  $('c-eq').onclick = e => {
+    e.stopPropagation();
+    show($('eq-pop'), $('eq-pop').hasAttribute('hidden'));
+    show($('rate-pop'), false);
   };
   addEventListener('click', e => {
     if (!e.target.closest('.rate-wrap')) show($('rate-pop'), false);
+    if (!e.target.closest('.eq-wrap')) show($('eq-pop'), false);
   });
   $('rate-grid').querySelectorAll('button')
     .forEach(b => b.onclick = () => setRate(Number(b.dataset.v)));
@@ -4124,6 +4158,7 @@ window.addEventListener('keydown', e => {
   switch (e.key) {
     case 'Escape':
       if (!$('rate-pop').hasAttribute('hidden')) show($('rate-pop'), false);
+      else if (!$('eq-pop').hasAttribute('hidden')) show($('eq-pop'), false);
       else if (document.body.classList.contains('full')) toggleFull(false);
       break;
     case ' ': e.preventDefault(); toggle(); break;
