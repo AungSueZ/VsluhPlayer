@@ -9,6 +9,7 @@ const { Lyrics } = require('./lib/lyrics');
 const { Presence } = require('./lib/rpc');
 const { MediaKeys } = require('./lib/mediakeys');
 const { Serve } = require('./lib/serve');
+const link = require('./lib/link');
 const { fillCovers } = require('./lib/artwork');
 const catalog = require('./lib/search');
 const ytdlp = require('./lib/ytdlp');
@@ -478,39 +479,7 @@ function wireIpc() {
 
   /* ---- разбор ссылок ---- */
 
-  ipcMain.handle('stream:resolve', async (e, url) => {
-    const u = String(url || '').trim();
-
-    const yt = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/.exec(u);
-    if (yt) {
-      let title = '', artist = '', cover = '';
-      try {
-        const r = await fetch('https://www.youtube.com/oembed?format=json&url=' +
-          encodeURIComponent('https://www.youtube.com/watch?v=' + yt[1]), { signal: AbortSignal.timeout(8000) });
-        if (r.ok) {
-          const j = await r.json();
-          title = j.title || ''; artist = j.author_name || ''; cover = j.thumbnail_url || '';
-        }
-      } catch {}
-      return { src: 'yt', id: yt[1], title: title || T('Трек с YouTube'), artist, cover,
-               duration: 0, url: 'https://www.youtube.com/watch?v=' + yt[1] };
-    }
-
-    if (/^https?:\/\/(www\.)?soundcloud\.com\/[^\/]+\/[^\/]+/i.test(u)) {
-      let title = '', artist = '', cover = '';
-      try {
-        const r = await fetch('https://soundcloud.com/oembed?format=json&url=' + encodeURIComponent(u),
-          { signal: AbortSignal.timeout(8000) });
-        if (r.ok) {
-          const j = await r.json();
-          title = j.title || ''; artist = j.author_name || ''; cover = j.thumbnail_url || '';
-        }
-      } catch {}
-      return { src: 'sc', id: u, title: title || T('Трек с SoundCloud'), artist, cover, duration: 0, url: u };
-    }
-
-    return null;
-  });
+  ipcMain.handle('stream:resolve', (e, url) => link.resolve(url, T));
 
   ipcMain.handle('lib:applyMeta', (e, p) => library.applyMeta(p?.id, p?.meta));
 

@@ -124,5 +124,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // путь к файлу -> ссылка, которую понимает <audio> и <img>.
   // тот же origin, что и у страницы, иначе canvas не пустит к пикселям обложки
-  file: p => p ? `${BASE}/media?t=${TOKEN}&p=${encodeURIComponent(p)}` : ''
+  file: p => p ? `${BASE}/media?t=${TOKEN}&p=${encodeURIComponent(p)}` : '',
+
+  // чужая ссылка -> она же, но через наш сервер. нужен он ровно затем же:
+  // со своего адреса звук доходит до эквалайзера, а обложка - до canvas
+  net: u => u ? `${BASE}/net?t=${TOKEN}&u=${encodeURIComponent(u)}` : ''
 });

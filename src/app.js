@@ -42,6 +42,15 @@ const S = {
   seeking: false
 };
 
+/* Трек, вставленный ссылкой. В библиотеке ему не место - там файлы с диска, а
+   этот живёт только до конца сеанса. Поэтому лежит отдельно, а ищется вместе с
+   библиотечными: очереди, переходу и тексту всё равно, откуда трек взялся. */
+let LINK = null;
+const byId = id => (LINK && LINK.id === id ? LINK : S.tracks.find(t => t.id === id));
+
+// свой файл отдаёт локальный сервер, чужую ссылку он же проксирует
+const srcOf = t => (t.remote ? window.api.net(t.url) : window.api.file(t.path));
+
 /* ===================== звук ===================== */
 let actx = null, analyser = null, freq = null, timeData = null;
 let mix = null;                  // сюда сходятся обе деки, дальше эквалайзер
@@ -133,7 +142,7 @@ const pauseAll = () => { for (const d of DECKS) { try { d.pause(); } catch {} } 
 function loadDeck(d, track) {
   d.__track = track;
   d.__counted = false;
-  d.src = window.api.file(track.path);
+  d.src = srcOf(track);
   d.volume = d.muted ? 0 : S.cfg.volume;
   d.playbackRate = S.cfg.rate || 1;
   applyPitch();
@@ -209,7 +218,7 @@ function xfTick() {
   waveTopUp();
   const p = nextPos();
   if (p < 0) return;
-  const t = S.tracks.find(x => x.id === S.queue[S.order[p]]);
+  const t = byId(S.queue[S.order[p]]);
   if (!t) return;
   S.pos = p;
   play(t, false, true);
@@ -303,7 +312,13 @@ function accentFrom(url) {
 }
 
 /* ===================== плеер ===================== */
-function coverUrl(t) { return t && t.cover ? window.api.file(t.cover) : ''; }
+// обложка с диска идёт через /media, чужая - через /net: со своего адреса с неё
+// можно взять цвет для перекраса, а с чужого canvas закрывается наглухо
+function coverUrl(t) {
+  const c = t && t.cover;
+  if (!c) return '';
+  return /^https?:\/\//i.test(c) ? window.api.net(c) : window.api.file(c);
+}
 
 function buildOrder() {
   const n = S.queue.length;
@@ -374,7 +389,7 @@ function play(track, fromQueue, soft) {
   renderQueue();
   touchPlay(track);
   if ((S.cfg.theme || {}).vizAuto === 'track') nextViz('track');
-  window.api.settings.set({ lastTrack: track.id });
+  if (!track.remote) window.api.settings.set({ lastTrack: track.id });
 }
 
 function paintTrack(t) {
@@ -435,7 +450,7 @@ function step(dir) {
   if (p < 0) p = S.cfg.repeat === 'all' ? S.order.length - 1 : 0;
 
   S.pos = p;
-  const t = S.tracks.find(x => x.id === S.queue[S.order[p]]);
+  const t = byId(S.queue[S.order[p]]);
   if (t) play(t, false);
 }
 
@@ -517,7 +532,8 @@ for (const d of DECKS) {
   });
   d.addEventListener('error', () => {
     if (d !== audio || !d.currentSrc) return;
-    toast('Файл не читается, пропускаю');
+    // у трека по ссылке виноват не файл, а сеть - и говорить надо про неё
+    toast(d.__track && d.__track.remote ? 'Ссылка не открылась' : 'Файл не читается, пропускаю');
     setTimeout(() => step(1), 400);
   });
   d.addEventListener('loadedmetadata', () => {
@@ -562,7 +578,7 @@ function saveStats() {
 
 // дослушал до конца - это и есть прослушивание. пропустил на середине не в счёт
 function countPlay(t) {
-  if (!t || !t.id) return;
+  if (!t || !t.id || t.remote) return;   // трек по ссылке в счёт библиотеки не идёт
   const s = stats();
   s.plays[t.id] = (s.plays[t.id] || 0) + 1;
   s.last[t.id] = Date.now();
@@ -572,7 +588,7 @@ function countPlay(t) {
 
 // а вот "когда включали" отмечаем при запуске: для волны важно и это
 function touchPlay(t) {
-  if (!t || !t.id) return;
+  if (!t || !t.id || t.remote) return;
   stats().last[t.id] = Date.now();
   saveStats();
 }
@@ -1326,7 +1342,7 @@ function renderQueue() {
   $('q-count').textContent = S.order.length || '0';
   const from = Math.max(0, S.pos - 1);
   S.order.slice(from, from + 40).forEach((qi, k) => {
-    const t = S.tracks.find(x => x.id === S.queue[qi]);
+    const t = byId(S.queue[qi]);
     if (!t) return;
     const i = from + k;
     const d = el('div', 'q-i' + (i === S.pos ? ' on' : ''));
@@ -1430,6 +1446,22 @@ function showStream(kind) {
   $('stream-src').textContent = kind === 'yt' ? 'YouTube' : 'SoundCloud';
   show($('yt-box'), kind === 'yt');
   show($('sc-frame'), kind === 'sc');
+}
+
+/* Трек по прямой ссылке играем сами, а не чужим проигрывателем. Поэтому с ним
+   работает ровно то же, что и с файлом на диске: эквалайзер, визуализация,
+   переход между треками, текст песни. На диск при этом ничего не ложится -
+   сервер только пропускает поток через себя. */
+function playLink(it) {
+  if (!it) return;
+  stopPreview();
+  LINK = {
+    id: it.id, remote: true, url: it.url, path: '',
+    title: it.title, artist: it.artist || '', album: '',
+    cover: it.cover || '', duration: 0
+  };
+  setQueue([LINK.id]);
+  play(LINK);
 }
 
 async function streamPlay(item, queue) {
@@ -1603,6 +1635,9 @@ const sqCards = new Map();
 const sNorm = s => String(s || '').toLowerCase().replace(/ё/g, 'е')
   .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
+// имя сайта из ссылки - им подписываем карточку трека, вставленного ссылкой
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return T('ссылка'); } };
+
 // такой трек уже есть в библиотеке?
 function haveLocally(r) {
   const k = sNorm(r.artist) + '|' + sNorm(r.title);
@@ -1662,6 +1697,7 @@ function renderSearch() {
   for (const r of sqResults) {
     const c = el('div', 'sq-i');
     const stream = r.src === 'yt' || r.src === 'sc';
+    const direct = r.src === 'url';        // прямая ссылка на файл - играем сами
 
     let pick = null;
     if (canGrab(r)) {
@@ -1687,7 +1723,10 @@ function renderSearch() {
     m.append(t, a, s);
 
     const play = el('button', 'cbtn sq-prev');
-    if (stream) {
+    if (direct) {
+      play.title = T('слушать целиком');
+      play.onclick = () => playLink(r);
+    } else if (stream) {
       play.title = T('слушать целиком');
       play.onclick = () => streamPlay(r, sqResults.filter(x => x.src === r.src));
     } else {
@@ -1705,9 +1744,11 @@ function renderSearch() {
     }
 
     const go = el('div', 'sq-go');
-    const links = stream
-      ? [[r.src === 'yt' ? 'YouTube' : 'SoundCloud', r.url]]
-      : goLinks(r);
+    const links = direct
+      ? [[hostOf(r.url), r.url]]
+      : stream
+        ? [[r.src === 'yt' ? 'YouTube' : 'SoundCloud', r.url]]
+        : goLinks(r);
     for (const [name, url] of links) {
       const link = el('a');
       link.textContent = name;
@@ -1947,7 +1988,7 @@ async function runSearch(q) {
     sqResults = [it];
     $('sq-info').textContent = '';
     renderSearch();
-    streamPlay(it, [it]);
+    if (it.src === 'url') playLink(it); else streamPlay(it, [it]);
     return;
   }
 
@@ -3088,6 +3129,8 @@ function renderPrivacy() {
     ['Deezer и iTunes', 'артист и название — обложки, альбом, год, отрывок на 30 секунд',
       (S.cfg.artwork || {}).on !== false ? 'on' : 'off'],
     ['YouTube и SoundCloud', 'их встроенный плеер со своими куками — только когда включаешь трек оттуда',
+      'ask'],
+    ['Сайт из вставленной ссылки', 'плеер сам берёт с него поток и обложку — только по той ссылке, что ты вставил',
       'ask'],
     ['yt-dlp → YouTube', 'поисковый запрос и адрес видео — только когда сам ищешь или качаешь',
       DL.ok ? 'ask' : 'off'],
