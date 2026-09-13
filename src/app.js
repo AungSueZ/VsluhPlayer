@@ -2486,6 +2486,13 @@ function cycleLayout() {
   toast('Раскладка: ' + next.name);
 }
 
+/* Узкое окно сворачивает левый столб в значки, какой бы вид ни выбрали:
+   на 232 пикселя панели в маленьком окне уходит пол-экрана. Правила в CSS
+   написаны один раз - и для выбора, и для этого класса. */
+const NARROW = matchMedia('(max-width:880px)');
+const syncNarrow = () => document.body.classList.toggle('side-narrow', NARROW.matches);
+NARROW.addEventListener('change', syncNarrow);
+
 function applyTheme() {
   const th = S.cfg.theme || {};
   $('v-now').dataset.lay = th.layout || 'stack';
@@ -2513,6 +2520,9 @@ function applyTheme() {
 
   document.body.dataset.barround = th.barRound ? '1' : '0';
   document.body.dataset.barprog = th.barProg || 'line';
+  document.body.dataset.side = th.side || 'normal';
+  document.body.dataset.sideq = th.sideQueue === false ? '0' : '1';
+  syncNarrow();
 
   $('px').style.display = S.cfg.particles ? '' : 'none';
   accentFrom(coverUrl(S.track));
@@ -2701,7 +2711,7 @@ function offPreset() {
 const LOOK_KEYS = ['accent', 'particles', 'lyricsTheme', 'lyricsSize', 'lyricsGlow', 'lyricsBlur'];
 const LOOK_THEME = ['fontUi', 'fontLy', 'accentColor', 'viz', 'vizPower', 'vizSpeed',
                     'vizAlpha', 'vizAuto', 'layout', 'disc', 'spin', 'beat',
-                    'bg', 'bgUrl', 'bgBlur', 'bgDim'];
+                    'side', 'sideQueue', 'bg', 'bgUrl', 'bgBlur', 'bgDim'];
 
 function currentLook() {
   const t = S.cfg.theme || {};
@@ -3830,6 +3840,7 @@ function wireThemes() {
     requestAnimationFrame(() => centerLyrics(LY.cur, true));
   });
 
+  const pSide = bindPick('p-side', () => th().side || 'normal', v => setTheme({ side: v }));
   const pLay  = bindPick('p-lay',  () => th().layout || 'stack', v => setLayout(v));
   const pViz  = bindPick('p-viz',  () => th().viz  || 'ring',  v => setTheme({ viz: v }));
   const pDisc = bindPick('p-disc', () => th().disc || 'vinyl', v => setTheme({ disc: v }));
@@ -3847,6 +3858,8 @@ function wireThemes() {
                          v => setTheme({ tint: v }));
   const swBarR = bindSwitch('s-barround', () => !!th().barRound,
                             v => setTheme({ barRound: v }));
+  const swSideQ = bindSwitch('s-sideq', () => th().sideQueue !== false,
+                             v => setTheme({ sideQueue: v }));
 
   const rPow  = bindRange('r-vizpower', () => th().vizPower ?? 100,
                           v => setTheme({ vizPower: v }), v => v + '%');
@@ -3922,10 +3935,10 @@ function wireThemes() {
 
   repaintTheme = () => {
     fUi(); fLy(); paintPal();
-    pLay(); pViz(); pDisc(); pBg(); pAuto();
+    pSide(); pLay(); pViz(); pDisc(); pBg(); pAuto();
     pSize(); pWgt(); pBarP(); pTint();
     rPow(); rSpd(); rAl(); rBlur(); rDim();
-    swSpin(); swBeat(); swPx(); swAc(); swBarR();
+    swSpin(); swBeat(); swPx(); swAc(); swBarR(); swSideQ();
     paintVid(); renderPresets(); renderProfiles();
   };
 }

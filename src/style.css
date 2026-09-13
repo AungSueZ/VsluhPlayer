@@ -1691,21 +1691,35 @@ body.full .full-btn{opacity:.5}
 }
 .priv-never b{color:var(--ink);font-weight:600}
 
+/* ===== левый столб: три вида =====
+   Ширину выбирают в темах, но узкое окно всё равно сворачивает панель в
+   значки - иначе на неё уходит половина экрана. Поэтому правила написаны один
+   раз и включаются либо выбором (data-side), либо классом, который вешает
+   слушатель размера окна. */
+body[data-side="icons"]{--side:60px}
+body[data-side="normal"]{--side:180px}
+body[data-side="wide"]{--side:232px}
+
+:is(body[data-side="icons"],body.side-narrow) :is(.nav-i span,.nav-lab,.me-txt,.me-go,.queue-head,.queue){display:none}
+:is(body[data-side="icons"],body.side-narrow) .nav-i{justify-content:center;padding:11px}
+/* очередь прячем, а «В системе» остаётся - иначе до неё было бы не добраться */
+:is(body[data-side="icons"],body.side-narrow) .side-foot{flex:none;margin-top:auto;border-top:none;padding-top:0}
+:is(body[data-side="icons"],body.side-narrow) .nav-sys{border-top:none;padding:11px;margin:0 8px 8px}
+/* от карточки остаётся один аватар - но щёлкнуть по нему всё так же можно */
+:is(body[data-side="icons"],body.side-narrow) .side-me{justify-content:center;margin:12px 8px 4px;padding:8px}
+:is(body[data-side="icons"],body.side-narrow) .nav{padding-top:2px}
+
+/* очередь можно убрать и из широкой панели - тогда меню прижимается кверху */
+body[data-sideq="0"] :is(.queue-head,.queue){display:none}
+body[data-sideq="0"] .side-foot{flex:none;margin-top:auto;border-top:none;padding-top:0}
+
 /* ===== узкое окно ===== */
 @media (max-width:1040px){
-  :root{--side:180px}
+  body[data-side="wide"]{--side:180px}
   .row-al{display:none}
 }
 @media (max-width:880px){
-  .side{width:60px;--side:60px}
-  .nav-i span,.nav-lab,.me-txt,.me-go,.queue-head,.queue{display:none}
-  .nav-i{justify-content:center;padding:11px}
-  /* очередь прячем, а «В системе» остаётся - иначе до неё было бы не добраться */
-  .side-foot{flex:none;margin-top:auto;border-top:none;padding-top:0}
-  .nav-sys{border-top:none;padding:11px;margin:0 8px 8px}
-  /* от карточки остаётся один аватар - но щёлкнуть по нему всё так же можно */
-  .side-me{justify-content:center;margin:12px 8px 4px;padding:8px}
-  .nav{padding-top:2px}
+  body[data-side]{--side:60px}
   .bar-now{width:auto;flex:1}
   .bar-right{width:auto}
   #mini-eq{display:none}
