@@ -55,6 +55,11 @@ function step(msg) {
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
 app.setAppUserModelId('app.vsluh.player');
+
+// Слежка за чужими плеерами и нажатие медиа-клавиш за пользователя -
+// это интерфейсы Windows. На других системах их просто нет, и модули
+// не заводятся вовсе, а не падают.
+const WIN = process.platform === 'win32';
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 let win = null;
@@ -223,7 +228,7 @@ function registerHotkeys() {
   if (h.mediaKeys !== false) {
     const route = (mine, sys) => () => {
       if (playerState.source === 'local' && playerState.title) send('hotkey', mine);
-      else mediaKeys.send(sys);
+      else if (mediaKeys) mediaKeys.send(sys);
     };
     bind('MediaPlayPause',     route('playpause', 'playpause'));
     bind('MediaNextTrack',     route('next', 'next'));
@@ -282,6 +287,7 @@ function wireIpc() {
     versions: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node },
     version: app.getVersion(),
     userData: app.getPath('userData'),
+    platform: process.platform,
     dev: DEV
   }));
 
@@ -295,7 +301,7 @@ function wireIpc() {
 
     if (JSON.stringify(data.hotkeys) !== before) registerHotkeys();
     if (JSON.stringify(data.discord) !== d0) applyDiscord();
-    if (data.smtc?.on !== s0) {
+    if (smtc && data.smtc?.on !== s0) {
       if (data.smtc?.on) { smtc.start(); send('smtc:update', smtc.snapshot()); }
       else { smtc.stop(); send('smtc:update', { sessions: [], current: null }); }
     }
@@ -656,7 +662,7 @@ function wireIpc() {
   ipcMain.handle('lyrics:get', (e, t) => lyrics.get(t || {}));
 
   ipcMain.handle('smtc:get', () => (smtc ? smtc.snapshot() : { sessions: [], current: null }));
-  ipcMain.handle('smtc:control', (e, what) => mediaKeys.send(what));
+  ipcMain.handle('smtc:control', (e, what) => (mediaKeys ? mediaKeys.send(what) : null));
 
   ipcMain.handle('discord:state', () => presence.status());
   ipcMain.handle('discord:reconnect', () => { presence.disconnect(true); applyDiscord(); return presence.status(); });
@@ -752,7 +758,7 @@ function migrateUserData() {
 
     fs.mkdirSync(next, { recursive: true });
     let moved = 0;
-    for (const name of ['settings.json', 'library.json', 'covers', 'lyrics', 'yt-dlp.exe']) {
+    for (const name of ['settings.json', 'library.json', 'covers', 'lyrics', 'yt-dlp.exe', 'yt-dlp']) {
       const from = path.join(prev, name), to = path.join(next, name);
       if (!fs.existsSync(from) || fs.existsSync(to)) continue;
       fs.cpSync(from, to, { recursive: true });
@@ -787,8 +793,8 @@ app.whenReady().then(async () => {
   library = new Library(dir);
   lyrics = new Lyrics(dir);
   presence = new Presence();
-  mediaKeys = new MediaKeys(dir);
-  smtc = new SmtcBridge(path.join(dir, 'smtc'), /vsluh|вслух|aung.?player|^electron/i);
+  mediaKeys = WIN ? new MediaKeys(dir) : null;
+  smtc = WIN ? new SmtcBridge(path.join(dir, 'smtc'), /vsluh|вслух|aung.?player|^electron/i) : null;
 
   presence.onState = s => send('discord:state', s);
 
@@ -805,10 +811,12 @@ app.whenReady().then(async () => {
   createWindow();
   step('createWindow отработал');
 
-  smtc.on('update', snap => { send('smtc:update', snap); pushPresence(); });
-  smtc.on('error', e => step('smtc: ' + e));
-  if (store.all.smtc?.on !== false) smtc.start();
-  step('smtc запущен');
+  if (smtc) {
+    smtc.on('update', snap => { send('smtc:update', snap); pushPresence(); });
+    smtc.on('error', e => step('smtc: ' + e));
+    if (store.all.smtc?.on !== false) smtc.start();
+    step('smtc запущен');
+  }
 
   registerHotkeys();
   step('горячие клавиши');

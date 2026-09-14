@@ -5077,6 +5077,9 @@ requestAnimationFrame(drawPx);
   paintDiscord(await window.api.discord.state());
 
   const info = await window.api.info();
+  // "В системе" читает чужие плееры через интерфейс Windows. На других
+  // системах его нет - прячем вкладку целиком, чтобы не обещать лишнего.
+  document.body.dataset.os = info.platform || 'win32';
   $('about-line').innerHTML =
     TF`Вслух ${info.version} · Electron ${info.versions.electron} · Chromium ${info.versions.chrome.split('.')[0]}<br>` +
     TF`Настройки и обложки лежат в <b>${info.userData}</b>`;

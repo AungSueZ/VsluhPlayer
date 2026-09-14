@@ -1806,3 +1806,7 @@ body[data-sideq="0"] .side-foot{flex:none;margin-top:auto;border-top:none;paddin
   #mini-eq{display:none}
   .eq-pop{width:min(374px,calc(100vw - 24px))}
 }
+
+/* ---- не Windows: "В системе" читает чужие плееры через интерфейс Windows,
+   на других системах его нет. Прячем вкладку и переключатель в настройках. ---- */
+body[data-os]:not([data-os="win32"]) :is(.nav-sys,#row-smtc,#v-system){display:none}
