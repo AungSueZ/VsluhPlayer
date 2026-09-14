@@ -77,9 +77,11 @@
       "synopsis": "Плеер с текстом песни",
       "description": "Музыкальный плеер: синхронный текст песни, визуализации, темы.",
       "desktop": {
-        "Name": "Вслух",
-        "Comment": "Плеер с текстом песни",
-        "Keywords": "music;player;lyrics;"
+        "entry": {
+          "Name": "Вслух",
+          "Comment": "Плеер с текстом песни",
+          "Keywords": "music;player;lyrics;"
+        }
       },
       "artifactName": "Vsluh-${version}-x86_64.${ext}"
     }
