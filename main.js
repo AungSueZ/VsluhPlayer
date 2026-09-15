@@ -52,7 +52,12 @@ function step(msg) {
   } catch {}
 }
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
+// Второй запуск должен отдать работу первому и уйти. app.quit() срабатывает
+// не мгновенно, а этот файл - не функция, из него нельзя выйти по return.
+// Поэтому запоминаем ответ и на старте просто ничего не делаем: иначе лишний
+// экземпляр успел бы поднять свой сервер и забрать себе горячие клавиши.
+const PRIMARY = app.requestSingleInstanceLock();
+if (!PRIMARY) app.quit();
 
 app.setAppUserModelId('app.vsluh.player');
 
@@ -889,6 +894,7 @@ function migrateUserData() {
 /* ---------- старт ---------- */
 
 app.whenReady().then(async () => {
+  if (!PRIMARY) return;          // мы второй экземпляр, окно поднимет первый
   step('app ready');
   nativeTheme.themeSource = 'dark';
 
