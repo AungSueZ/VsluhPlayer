@@ -187,7 +187,12 @@ function openMini() {
   mini.once('ready-to-show', () => {
     if (!mini || mini.isDestroyed()) return;
     mini.show();
-    if (win && !win.isDestroyed()) win.hide();
+    if (win && !win.isDestroyed()) {
+      // из полноэкранного режима сперва выходим: спрятать такое окно Windows
+      // соглашается, а показать обратно потом - уже не всегда
+      if (win.isFullScreen()) win.setFullScreen(false);
+      win.hide();
+    }
     send('mini:changed', true);   // большое окно начинает досылать состояние
   });
 

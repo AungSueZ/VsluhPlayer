@@ -1430,7 +1430,10 @@ $('lib-rows').addEventListener('pointerdown', e => {
   // а из «Всех» и «Любимых» - способ бросить трек на чужую вкладку
   pdStart = { x: e.clientX, y: e.clientY, row, pid: (orderablePl() || {}).id || '' };
   window.addEventListener('pointermove', pdMove);
-  window.addEventListener('pointerup', pdUp, { once: true });
+  window.addEventListener('pointerup', pdUp);
+  // мышь могли увести из окна или отобрать у страницы - иначе строка
+  // осталась бы висеть под курсором навсегда
+  window.addEventListener('pointercancel', pdCancel);
 });
 
 function pdMove(e) {
@@ -1582,8 +1585,17 @@ function dropOnTab(tab, id) {
   toast(TF`${t.title} — в «${p.name}»`);
 }
 
+// перенос оборвали, а не завершили: просто кладём всё как было
+function pdCancel() {
+  const was = PDRAG.on;
+  pdDone();
+  if (was) renderRows();
+}
+
 function pdDone() {
   window.removeEventListener('pointermove', pdMove);
+  window.removeEventListener('pointerup', pdUp);
+  window.removeEventListener('pointercancel', pdCancel);
   pdStart = null;
   if (PDRAG.ghost) PDRAG.ghost.remove();
   setChipTarget(null);
