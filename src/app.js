@@ -1497,6 +1497,9 @@ function dragPaint() {
     if (at !== PDRAG.at) { PDRAG.at = at; renderRows(); }
   }
 
+  // над вкладкой список не крутим: он уехал бы за спиной, пока целишься
+  if (PDRAG.chip) { PDRAG.roll = 0; return; }
+
   // у краёв списка подкручиваем его сами - иначе дальше экрана не утащить
   const sc = $('lib-scroll').getBoundingClientRect();
   const up = y - sc.top, down = sc.bottom - y;
@@ -1532,8 +1535,9 @@ function pdUp() {
   const onTab = PDRAG.chip && PDRAG.chip.dataset.tab;
   pdDone();
 
-  // бросили на вкладку - трек уходит туда, порядок здесь не трогаем
-  if (onTab) { dropOnTab(onTab, id); return; }
+  // бросили на вкладку - трек уходит туда, порядок здесь не трогаем.
+  // перерисовать надо в любом случае: строка всё ещё бледная
+  if (onTab) { renderRows(); dropOnTab(onTab, id); return; }
 
   // отпустили там же, откуда взяли
   if (!order || !p || at === from) { renderRows(); return; }
@@ -1558,7 +1562,7 @@ function pdUp() {
 // трек донесли до чужой вкладки и отпустили
 function dropOnTab(tab, id) {
   const t = byId(id);
-  if (!t) { renderRows(); return; }
+  if (!t) return;
 
   if (tab === 'fav') {
     if (!isFav(id)) { toggleFav(id); toast(TF`${t.title} — в любимых`); }
@@ -1567,8 +1571,8 @@ function dropOnTab(tab, id) {
   }
 
   const p = playlistById(tab);
-  if (!p) { renderRows(); return; }
-  if (p.tracks.includes(id)) { toast(TF`${t.title} уже в «${p.name}»`); renderRows(); return; }
+  if (!p) return;
+  if (p.tracks.includes(id)) { toast(TF`${t.title} уже в «${p.name}»`); return; }
 
   p.tracks.push(id);
   window.api.settings.set({ playlists: S.cfg.playlists });
