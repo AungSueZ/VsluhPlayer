@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, nativeTheme, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -126,6 +126,98 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith(serve.origin)) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); }
   });
+}
+
+/* ---------- мини-плеер ----------
+   отдельное окошко поверх всех окон. звук остаётся в главном окне: оно не
+   закрывается, а прячется, поэтому трек не обрывается и ничего не грузится заново */
+let mini = null;
+let quitting = false;
+
+const MINI_W = 364, MINI_H = 118;
+
+function miniBounds() {
+  const saved = (store && store.all.mini) || {};
+  const box = { width: MINI_W, height: MINI_H };
+
+  if (Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+    // монитор могли отключить - проверяем, что окошко всё ещё попадает на экран
+    const a = screen.getDisplayMatching({ x: saved.x, y: saved.y, ...box }).workArea;
+    const seen = saved.x + MINI_W > a.x && saved.x < a.x + a.width &&
+                 saved.y + MINI_H > a.y && saved.y < a.y + a.height;
+    if (seen) return { x: saved.x, y: saved.y, ...box };
+  }
+
+  // впервые - правый нижний угол того экрана, где сейчас большое окно
+  const d = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds())
+                                      : screen.getPrimaryDisplay();
+  const a = d.workArea;
+  return { x: a.x + a.width - MINI_W - 24, y: a.y + a.height - MINI_H - 24, ...box };
+}
+
+function openMini() {
+  if (mini && !mini.isDestroyed()) { mini.show(); mini.focus(); return; }
+
+  mini = new BrowserWindow({
+    ...miniBounds(),
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: '#0b0a0f',
+    title: 'Вслух',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: ['--aung-base=' + serve.origin, '--aung-token=' + serve.token],
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      backgroundThrottling: false
+    }
+  });
+
+  // 'floating' держит окошко выше чужих окон, но ниже системных меню
+  mini.setAlwaysOnTop(true, 'floating');
+  try { mini.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
+
+  mini.loadURL(serve.origin + '/mini.html');
+  mini.once('ready-to-show', () => {
+    if (!mini || mini.isDestroyed()) return;
+    mini.show();
+    if (win && !win.isDestroyed()) win.hide();
+    send('mini:changed', true);   // большое окно начинает досылать состояние
+  });
+
+  mini.on('moved', () => {
+    if (!mini || mini.isDestroyed()) return;
+    const b = mini.getBounds();
+    try { store.set({ mini: { x: b.x, y: b.y } }); } catch {}
+  });
+
+  // закрыли окошко мимо кнопки (Alt+F4) - возвращаем большое, а не выходим из плеера
+  mini.on('closed', () => { mini = null; if (!quitting) backToBig(); });
+
+  mini.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+}
+
+function backToBig() {
+  send('mini:changed', false);
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+}
+
+function closeMini() {
+  if (mini && !mini.isDestroyed()) mini.close();   // 'closed' сам вернёт большое окно
+  else backToBig();
 }
 
 function send(ch, payload) {
@@ -672,6 +764,15 @@ function wireIpc() {
     pushPresence();
   });
 
+  // мини-плеер: большое окно шлёт состояние, окошко шлёт команды - главный
+  // процесс только перекладывает их между окнами
+  ipcMain.on('mini:open',  () => openMini());
+  ipcMain.on('mini:close', () => closeMini());
+  ipcMain.on('mini:state', (e, s) => {
+    if (mini && !mini.isDestroyed()) mini.webContents.send('mini:state', s);
+  });
+  ipcMain.on('mini:cmd', (e, what) => send('mini:cmd', what));
+
   ipcMain.on('win:full', (e, on) => { if (win) win.setFullScreen(!!on); });
   ipcMain.on('win:min', () => win && win.minimize());
   ipcMain.on('win:max', () => { if (!win) return; win.isMaximized() ? win.unmaximize() : win.maximize(); });
@@ -826,14 +927,18 @@ app.whenReady().then(async () => {
   step('запуск завершён');
 
   app.on('second-instance', () => {
+    // сидим в мини-плеере - поднимаем окошко, большое окно сейчас нарочно спрятано
+    if (mini && !mini.isDestroyed()) { mini.show(); mini.focus(); return; }
     if (!win) return;
     if (win.isMinimized()) win.restore();
+    win.show();
     win.focus();
   });
 
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 
+app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => app.quit());
 
 app.on('will-quit', () => {

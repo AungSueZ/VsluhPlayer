@@ -35,7 +35,7 @@ function TF(strs, ...vals) {
    только то, что написано в index.html. названия треков и прочее, что рисует
    сам плеер, сюда не попадёт и случайно переведено не будет */
 const SNAP = { text: [], attr: [], done: false };
-const TR_ATTRS = ['placeholder', 'title', 'aria-label'];
+const TR_ATTRS = ['placeholder', 'title', 'aria-label', 'data-ph'];
 const CYR = /[А-Яа-яЁё]/;
 
 function snapshot() {

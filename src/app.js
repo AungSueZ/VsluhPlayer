@@ -521,6 +521,7 @@ function report() {
     duration: curDur(),
     source: 'local'          // главный процесс по этому полю решает, кому отдать медиа-клавиши
   });
+  miniPush();
 }
 
 /* --- события аудио --- */
@@ -551,6 +552,7 @@ function paintProgress() {
   document.documentElement.style.setProperty('--pg', p.toFixed(2) + '%');
   $('t-cur').textContent = fmt(c);
   $('t-dur').textContent = fmt(d);
+  miniTick();
   tickLyrics();
 }
 
@@ -884,6 +886,7 @@ function toggleFav(id) {
   window.api.settings.set({ favorites: S.cfg.favorites });
   renderChips();
   renderRows();
+  miniPush();
 }
 
 // "1 трек", "2 трека", "5 треков"
@@ -1039,6 +1042,10 @@ function renderPlHead() {
     box.style.backgroundImage = '';
     box.classList.remove('has');
     box.firstElementChild.textContent = '✦';
+    // у волны нет ни автора, ни описания - она собирается сама
+    $('pl-kind').textContent = T('Подборка');
+    $('pl-by').hidden = true;
+    $('pl-desc').hidden = true;
     $('pl-name').textContent = T('Моя волна');
     $('pl-sub').textContent = T('собрана из твоей библиотеки · ') + (S.order.length - S.pos)
       + ' впереди';
@@ -1053,7 +1060,18 @@ function renderPlHead() {
   box.style.backgroundImage = c ? `url("${c}")` : '';
   box.classList.toggle('has', !!c);
 
+  $('pl-kind').textContent = T('Плейлист');
   $('pl-name').textContent = p.name;
+
+  const by = (p.author || '').trim();
+  $('pl-by').hidden = !by;
+  $('pl-by').textContent = by;
+
+  const d = $('pl-desc');
+  d.hidden = false;
+  // пока человек пишет - не трогаем: иначе курсор прыгнет в начало
+  if (document.activeElement !== d) d.textContent = p.desc || '';
+
   const n = p.tracks.length;
   $('pl-sub').textContent = n + ' ' + plural(n, T('трек'), T('трека'), T('треков'))
     + (p.cover ? ' · своя обложка' : c ? ' · обложка от первого трека' : '');
@@ -1087,14 +1105,35 @@ function wirePlHead() {
   }
   $('wave-off').onclick = stopWave;
 
+  // описание правится на месте, сохраняется когда уводишь фокус
+  const desc = $('pl-desc');
+  desc.addEventListener('blur', () => {
+    const p = cur();
+    if (!p) return;
+    const t = desc.textContent.trim().slice(0, 300);
+    if (t === (p.desc || '')) return;
+    p.desc = t;
+    save();
+  });
+  desc.addEventListener('keydown', e => {
+    // Enter заканчивает правку, а не переносит строку
+    if (e.key === 'Enter') { e.preventDefault(); desc.blur(); }
+    if (e.key === 'Escape') { desc.textContent = (cur() || {}).desc || ''; desc.blur(); }
+  });
+
   renderPlHead();
 }
 
 function newPlaylist(name, firstTrack) {
+  const me = (S.cfg.profile || {}).name || '';
   const p = {
     id: 'p' + Date.now().toString(36),
     name: (name || '').trim() || 'Новый плейлист',
     cover: '',
+    // кто завёл - запоминаем один раз: переименуешь профиль,
+    // старые плейлисты останутся с прежним именем
+    author: me,
+    desc: '',
     tracks: firstTrack ? [firstTrack] : []
   };
   S.cfg.playlists = [...(S.cfg.playlists || []), p];
@@ -1168,6 +1207,7 @@ function renderChips() {
 
   const mk = (id, label, count) => {
     const b = el('button', 'chip' + (tab === id ? ' on' : ''));
+    b.dataset.tab = id;
     b.append(document.createTextNode(T(label)));
     if (count != null) { const e = el('em'); e.textContent = count; b.appendChild(e); }
     b.onclick = () => {
@@ -1292,7 +1332,9 @@ addEventListener('click', e => {
 
 let rowCache = [];
 function renderRows() {
-  const list = visibleTracks();
+  const list = PDRAG.on && PDRAG.order
+    ? dragPreview(PDRAG.list, PDRAG.from, PDRAG.at)
+    : visibleTracks();
   const scroll = $('lib-scroll'), rows = $('lib-rows');
 
   $('lib-empty').hidden = S.tracks.length > 0;
@@ -1311,6 +1353,7 @@ function renderRows() {
   while (rowCache.length < need) {
     const r = el('div', 'row');
     r.innerHTML = `<div class="row-n"></div>
+      <div class="row-grip" aria-hidden="true"><svg viewBox="0 0 10 16"><circle cx="3" cy="4" r="1.1"/><circle cx="7" cy="4" r="1.1"/><circle cx="3" cy="8" r="1.1"/><circle cx="7" cy="8" r="1.1"/><circle cx="3" cy="12" r="1.1"/><circle cx="7" cy="12" r="1.1"/></svg></div>
       <div class="row-bars"><i></i><i></i><i></i></div>
       <div class="row-art"><span>♫</span></div>
       <div class="row-meta"><div class="row-t"></div><div class="row-a"></div></div>
@@ -1334,6 +1377,7 @@ function renderRows() {
     r.style.top = (i * ROW_H + 6) + 'px';
     r.dataset.id = t.id;
     r.classList.toggle('on', S.track?.id === t.id);
+    r.classList.toggle('lifted', PDRAG.on && PDRAG.id === t.id);
     r.querySelector('.row-n').textContent = i + 1;
     r.querySelector('.row-t').textContent = t.title;
     r.querySelector('.row-a').textContent = t.artist || '—';
@@ -1354,7 +1398,199 @@ function renderRows() {
 
 $('lib-scroll').addEventListener('scroll', () => renderRows(), { passive: true });
 
+/* ---- порядок в плейлисте мышью ----
+   список нарисован «виртуально»: строк на экране всего десяток, при прокрутке
+   они переезжают с места на место. поэтому под мышью едет копия строки, а сам
+   список тут же перерисовывается таким, каким станет - место видно сразу */
+const PDRAG = {
+  on: false, order: false, id: '', pid: '', from: -1, at: -1,
+  list: null, ghost: null, chip: null, dy: 0, x: 0, y: 0, roll: 0, sank: false
+};
+
+// переставлять руками есть смысл только в плейлисте: во «Всех» и «Любимых»
+// порядок задаёт сортировка, и рука бы с ней спорила
+const orderablePl = () => playlistById(S.cfg.libTab) || null;
+
+// список с треком, перенесённым на новое место
+function dragPreview(list, from, at) {
+  const out = list.slice();
+  const [t] = out.splice(from, 1);
+  out.splice(Math.max(0, Math.min(out.length, at)), 0, t);
+  return out;
+}
+
+let pdStart = null;   // нажали, но ещё не потащили
+
+$('lib-rows').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || PDRAG.on) return;
+  const row = e.target.closest('.row');
+  if (!row || e.target.closest('.row-act')) return;
+
+  // тащить можно из любой вкладки: внутри плейлиста это перестановка,
+  // а из «Всех» и «Любимых» - способ бросить трек на чужую вкладку
+  pdStart = { x: e.clientX, y: e.clientY, row, pid: (orderablePl() || {}).id || '' };
+  window.addEventListener('pointermove', pdMove);
+  window.addEventListener('pointerup', pdUp, { once: true });
+});
+
+function pdMove(e) {
+  if (!PDRAG.on) {
+    // пока мышь стоит почти на месте - это ещё обычное нажатие
+    if (!pdStart) return;
+    if (Math.abs(e.clientY - pdStart.y) < 5 && Math.abs(e.clientX - pdStart.x) < 5) return;
+    if (!dragBegin(e)) { pdDone(); return; }
+  }
+  PDRAG.x = e.clientX;
+  PDRAG.y = e.clientY;
+  dragPaint();
+  e.preventDefault();
+}
+
+function dragBegin(e) {
+  const row = pdStart.row;
+  const list = visibleTracks();
+  const from = list.findIndex(t => t.id === row.dataset.id);
+  if (from < 0) return false;
+
+  Object.assign(PDRAG, {
+    on: true, id: row.dataset.id, pid: pdStart.pid,
+    // порядок переставляем только там, где он вообще свой
+    order: !!playlistById(pdStart.pid),
+    from, at: from, list, roll: 0, chip: null
+  });
+
+  const r = row.getBoundingClientRect();
+  PDRAG.dy = e.clientY - r.top;
+
+  // копия строки: настоящая остаётся в списке бледной тенью
+  const g = row.cloneNode(true);
+  g.className = 'row row-ghost';
+  g.style.width = r.width + 'px';
+  g.style.left = r.left + 'px';
+  g.style.top = r.top + 'px';
+  document.body.appendChild(g);
+  PDRAG.ghost = g;
+
+  document.body.classList.add('dragging');
+  renderRows();
+  requestAnimationFrame(dragRoll);
+  return true;
+}
+
+function dragPaint() {
+  const y = PDRAG.y;
+  PDRAG.ghost.style.top = (y - PDRAG.dy) + 'px';
+
+  // над вкладкой? значит трек кладут туда, а не переставляют в списке.
+  // копия строки мышь не ловит, поэтому под ней всегда то, что нужно
+  const under = document.elementFromPoint(PDRAG.x, y);
+  const chip = under && under.closest('#lib-chips .chip[data-tab]');
+  const tab = chip && chip.dataset.tab;
+  const good = tab === 'fav' || !!playlistById(tab);
+  setChipTarget(good ? chip : null);
+
+  if (!PDRAG.chip && PDRAG.order) {
+    const box = $('lib-rows').getBoundingClientRect();
+    const n = PDRAG.list.length;
+    let at = Math.floor((y - box.top - 6) / ROW_H);
+    at = Math.max(0, Math.min(n - 1, at));
+    if (at !== PDRAG.at) { PDRAG.at = at; renderRows(); }
+  }
+
+  // у краёв списка подкручиваем его сами - иначе дальше экрана не утащить
+  const sc = $('lib-scroll').getBoundingClientRect();
+  const up = y - sc.top, down = sc.bottom - y;
+  PDRAG.roll = up < 52 ? -Math.min(16, (52 - up) / 3)
+             : down < 52 ? Math.min(16, (52 - down) / 3)
+             : 0;
+}
+
+function setChipTarget(chip) {
+  if (PDRAG.chip === chip) return;
+  if (PDRAG.chip) PDRAG.chip.classList.remove('chip-drop');
+  PDRAG.chip = chip;
+  if (chip) chip.classList.add('chip-drop');
+}
+
+function dragRoll() {
+  if (!PDRAG.on) return;
+  if (PDRAG.roll) {
+    const sc = $('lib-scroll');
+    const was = sc.scrollTop;
+    sc.scrollTop = was + PDRAG.roll;
+    if (sc.scrollTop !== was) dragPaint();
+  }
+  requestAnimationFrame(dragRoll);
+}
+
+function pdUp() {
+  if (!PDRAG.on) { pdDone(); return; }
+
+  const p = playlistById(PDRAG.pid);
+  const { id, from, at, list, order } = PDRAG;
+  const after = dragPreview(list, from, at)[at + 1];   // кто окажется следующим
+  const onTab = PDRAG.chip && PDRAG.chip.dataset.tab;
+  pdDone();
+
+  // бросили на вкладку - трек уходит туда, порядок здесь не трогаем
+  if (onTab) { dropOnTab(onTab, id); return; }
+
+  // отпустили там же, откуда взяли
+  if (!order || !p || at === from) { renderRows(); return; }
+
+  const ids = p.tracks.slice();
+  const cut = ids.indexOf(id);
+  if (cut < 0) { renderRows(); return; }
+  ids.splice(cut, 1);
+
+  // встаём прямо перед следующим треком. считаем по id, а не по номеру строки:
+  // при включённом поиске видно не весь плейлист
+  let ins = after ? ids.indexOf(after.id) : -1;
+  if (ins < 0) ins = ids.length;
+  ids.splice(ins, 0, id);
+
+  p.tracks = ids;
+  window.api.settings.set({ playlists: S.cfg.playlists });
+  renderRows();
+  renderPlHead();
+}
+
+// трек донесли до чужой вкладки и отпустили
+function dropOnTab(tab, id) {
+  const t = byId(id);
+  if (!t) { renderRows(); return; }
+
+  if (tab === 'fav') {
+    if (!isFav(id)) { toggleFav(id); toast(TF`${t.title} — в любимых`); }
+    else toast(TF`${t.title} уже в любимых`);
+    return;
+  }
+
+  const p = playlistById(tab);
+  if (!p) { renderRows(); return; }
+  if (p.tracks.includes(id)) { toast(TF`${t.title} уже в «${p.name}»`); renderRows(); return; }
+
+  p.tracks.push(id);
+  window.api.settings.set({ playlists: S.cfg.playlists });
+  renderChips();
+  renderRows();
+  renderPlHead();
+  toast(TF`${t.title} — в «${p.name}»`);
+}
+
+function pdDone() {
+  window.removeEventListener('pointermove', pdMove);
+  pdStart = null;
+  if (PDRAG.ghost) PDRAG.ghost.remove();
+  setChipTarget(null);
+  // строку тащили - значит это было не нажатие, и играть ничего не надо
+  PDRAG.sank = PDRAG.on;
+  Object.assign(PDRAG, { on: false, order: false, id: '', ghost: null, list: null, chip: null, roll: 0 });
+  document.body.classList.remove('dragging');
+}
+
 $('lib-rows').addEventListener('click', e => {
+  if (PDRAG.sank) { PDRAG.sank = false; return; }
   const row = e.target.closest('.row');
   if (!row) return;
   const t = S.tracks.find(x => x.id === row.dataset.id);
@@ -4167,7 +4403,79 @@ function paintDiscord(s) {
 }
 window.api.discord.onState(paintDiscord);
 
+/* ===================== мини-плеер =====================
+   маленькое окно поверх всех окон. звук остаётся здесь: большое окно не
+   закрывается, а прячется, поэтому трек не обрывается и не грузится заново.
+   окошко только показывает присланное и шлёт нажатия обратно */
+const MINI = { on: false, last: 0 };
+
+const nowItem = () => (S.source === 'local' ? S.track : STREAM.item);
+
+function miniPush() {
+  if (!MINI.on) return;
+  const it = nowItem();
+  const own = S.source === 'local' && !!it;   // сердечко есть только у своих треков
+  window.api.mini.state({
+    playing: !!it && isPlaying(),
+    title: it?.title || '',
+    artist: it?.artist || '',
+    cover: it ? coverUrl(it) : '',
+    position: curTime(),
+    duration: curDur(),
+    canFav: own,
+    fav: own && isFav(it.id),
+    accent: getComputedStyle(document.documentElement).getPropertyValue('--ac').trim() || '150,140,255',
+    // подписи отдаём готовыми: словарь на 700 строк ради шести названий кнопок
+    // в окошко не тащим
+    labels: {
+      'b-fav':  T('В любимые'),
+      'b-prev': T('Назад'),
+      'b-next': T('Вперёд'),
+      'b-up':   T('Вернуть большое окно'),
+      play:     T('Играть'),
+      pause:    T('Пауза')
+    }
+  });
+}
+
+// время идёт четыре раза в секунду - шлём только его и не чаще, чем нужно полоске
+function miniTick() {
+  if (!MINI.on) return;
+  const now = performance.now();
+  if (now - MINI.last < 220) return;
+  MINI.last = now;
+  const it = nowItem();
+  window.api.mini.state({
+    tick: true,
+    playing: !!it && isPlaying(),
+    position: curTime(),
+    duration: curDur()
+  });
+}
+
+window.api.mini.onChanged(on => { MINI.on = !!on; if (on) miniPush(); });
+
+window.api.mini.onCmd(what => {
+  if (what === 'hello')   return miniPush();
+  if (what === 'toggle')  return toggle();
+  if (what === 'next')    return step(1);
+  if (what === 'prev')    return (curTime() > 3 ? seekTo(0) : step(-1));
+  if (what === 'volup')   return setVolume(S.cfg.volume + 0.05);
+  if (what === 'voldown') return setVolume(S.cfg.volume - 0.05);
+  if (what === 'fav') {
+    const it = S.source === 'local' ? S.track : null;
+    if (it) { toggleFav(it.id); miniPush(); }
+    return;
+  }
+  if (what.startsWith('seek:')) {
+    const d = curDur();
+    if (d) seekTo(parseFloat(what.slice(5)) * d);
+  }
+});
+
 /* ===================== кнопки ===================== */
+$('w-mini').onclick = () => window.api.mini.open();
+$('mini-go').onclick = () => window.api.mini.open();
 $('w-min').onclick = () => window.api.win.min();
 $('w-max').onclick = () => window.api.win.max();
 $('w-close').onclick = () => window.api.win.close();
@@ -4339,14 +4647,16 @@ document.querySelector('.vol').addEventListener('wheel', e => {
   setVolume(S.cfg.volume + (e.deltaY < 0 ? 0.05 : -0.05));
 }, { passive: false });
 
-function seekBy(sec) {
+function seekTo(sec) {
   const d = curDur();
   if (!d) return;
-  const to = Math.max(0, Math.min(d, curTime() + sec));
+  const to = Math.max(0, Math.min(d, sec));
   LY.cur = -2;
   if (S.source === 'local') { if (S.track) audio.currentTime = to; }
   else streamSeek(to);
 }
+
+function seekBy(sec) { seekTo(curTime() + sec); }
 
 /* --- клавиатура --- */
 window.addEventListener('keydown', e => {
@@ -4376,6 +4686,9 @@ window.addEventListener('keydown', e => {
       if (e.ctrlKey || e.altKey) break;
       e.preventDefault();
       cycleLayout();
+      break;
+    case 'm': case 'M': case 'ь': case 'Ь':
+      if (e.ctrlKey) { e.preventDefault(); window.api.mini.open(); }
       break;
     case 'n': case 'N': if (e.ctrlKey) step(1); break;
     case 'p': case 'P': if (e.ctrlKey) step(-1); break;

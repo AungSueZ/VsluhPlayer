@@ -26,6 +26,7 @@
   </div>
   <div class="tb-drag"></div>
   <div class="tb-win">
+    <button class="tbtn" id="w-mini" title="Мини-плеер — Ctrl+M" aria-label="мини-плеер"><svg viewBox="0 0 12 12"><rect x="1" y="2" width="10" height="8" rx="1.2" fill="none" stroke="currentColor" stroke-width="1"/><rect x="5.6" y="5.6" width="4.4" height="3.4" rx="0.8" fill="currentColor"/></svg></button>
     <button class="tbtn" id="w-min" aria-label="свернуть"><svg viewBox="0 0 12 12"><rect x="2" y="5.5" width="8" height="1"/></svg></button>
     <button class="tbtn" id="w-max" aria-label="развернуть"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg></button>
     <button class="tbtn tbtn-x" id="w-close" aria-label="закрыть"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></button>
@@ -171,7 +172,16 @@
       <div class="pl-head" id="pl-head" hidden>
         <div class="pl-cover" id="pl-cover"><span>♫</span></div>
         <div class="pl-meta">
+          <!-- пусто нарочно: надпись ставит сам плеер, иначе при смене языка
+               "Подборка" у Моей волны превратилась бы обратно в "Плейлист" -->
+          <div class="pl-kind" id="pl-kind"></div>
           <div class="pl-name" id="pl-name"></div>
+          <!-- автор берётся из профиля: аккаунтов тут нет, это просто имя
+               того, кто сидит за компьютером -->
+          <div class="pl-by" id="pl-by" hidden></div>
+          <!-- описание правится прямо здесь, по нажатию -->
+          <div class="pl-desc" id="pl-desc" contenteditable="plaintext-only"
+               data-ph="Описание — нажми, чтобы написать"></div>
           <div class="pl-sub" id="pl-sub"></div>
         </div>
         <div class="pick" id="wave-mode" hidden>
@@ -849,6 +859,18 @@
           </div>
           <p class="hint">В папке с данными лежат настройки, библиотека, обложки и кэш текстов.
              Удалишь её — приложение забудет всё, кроме самих музыкальных файлов.</p>
+        </div>
+
+        <div class="set-block">
+          <h3>Мини-плеер</h3>
+          <p class="hint">Маленькое окно поверх всех остальных: обложка, название, кнопки и полоса.
+             Большое окно при этом прячется, но музыка не прерывается — играет всё там же.
+             Колесом над окошком меняется громкость, двойным щелчком по обложке
+             возвращается большое окно.</p>
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="mini-go">Открыть мини-плеер</button>
+          </div>
+          <p class="hint">То же самое делает кнопка слева от «свернуть» наверху окна и Ctrl+M.</p>
         </div>
 
         <div class="set-block">

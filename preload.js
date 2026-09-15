@@ -107,6 +107,18 @@ contextBridge.exposeInMainWorld('api', {
     report:    s         => ipcRenderer.send('player:state', s)
   },
 
+  // мини-плеер. главное окно отсюда только открывает его и досылает состояние,
+  // само окошко - шлёт команды обратно
+  mini: {
+    open:      ()        => ipcRenderer.send('mini:open'),
+    close:     ()        => ipcRenderer.send('mini:close'),
+    state:     s         => ipcRenderer.send('mini:state', s),
+    cmd:       what      => ipcRenderer.send('mini:cmd', what),
+    onState:   fn        => on('mini:state', fn),
+    onCmd:     fn        => on('mini:cmd', fn),
+    onChanged: fn        => on('mini:changed', fn)
+  },
+
   win: {
     full:      on        => ipcRenderer.send('win:full', on),
     min:       ()        => ipcRenderer.send('win:min'),

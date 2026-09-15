@@ -10,4 +10,18 @@ ROWS = [
 ("Иконки появятся под ником на карточке. Можно вставить и целую ссылку — короткое имя из неё возьмётся само. Адрес плеер собирает сам, поэтому по клику откроется только нужный сайт и ничего кроме. У Discord общедоступной страницы профиля нет: если вписать имя, клик его скопирует, а ссылка-приглашение откроется.",
  "Іконки з'являться під ніком на картці. Можна вставити й ціле посилання — коротке ім'я з нього візьметься саме. Адресу плеєр збирає сам, тому за кліком відкриється лише потрібний сайт і нічого крім. У Discord загальнодоступної сторінки профілю немає: якщо вписати ім'я, клік його скопіює, а посилання-запрошення відкриється.",
  "The icons appear under your nickname on the card. You can paste a whole link — the short name will be taken from it. The player builds the address itself, so a click can only open that one site and nothing else. Discord has no public profile page: type a username and a click copies it, paste an invite link and it opens."),
+
+("Мини-плеер", "Міні-плеєр", "Mini player"),
+("Маленькое окно поверх всех остальных: обложка, название, кнопки и полоса. Большое окно при этом прячется, но музыка не прерывается — играет всё там же. Колесом над окошком меняется громкость, двойным щелчком по обложке возвращается большое окно.",
+ "Маленьке вікно поверх усіх інших: обкладинка, назва, кнопки і смуга. Велике вікно при цьому ховається, але музика не уривається — грає все там само. Колесом над віконцем змінюється гучність, подвійним клацанням по обкладинці повертається велике вікно.",
+ "A small window above all the others: artwork, title, buttons and a progress bar. The big window hides, but the music keeps playing — nothing restarts. The wheel over the window changes the volume, a double click on the artwork brings the big window back."),
+("Открыть мини-плеер", "Відкрити міні-плеєр", "Open the mini player"),
+("То же самое делает кнопка слева от «свернуть» наверху окна и Ctrl+M.",
+ "Те саме робить кнопка ліворуч від «згорнути» вгорі вікна та Ctrl+M.",
+ "The button left of “minimise” at the top of the window and Ctrl+M do the same."),
+
+("{0} — в любимых", "{0} — в улюблених", "{0} — added to favourites"),
+("{0} уже в любимых", "{0} уже в улюблених", "{0} is already in favourites"),
+("{0} — в «{1}»", "{0} — у «{1}»", "{0} — added to “{1}”"),
+("{0} уже в «{1}»", "{0} вже у «{1}»", "{0} is already in “{1}”"),
 ]

@@ -1,0 +1,142 @@
+/* ===== мини-плеер =====
+   окошко 364x118 поверх всех окон. своё оформление, а не урезанный style.css:
+   там 1800 строк на большое окно, и тащить их сюда ради одной полоски незачем */
+
+:root{
+  --ac:150,140,255;                 /* приходит из большого окна, под обложку */
+  --ink:#ece9f0;
+  --dim:rgba(236,233,240,.5);
+  --dim2:rgba(236,233,240,.3);
+  --line:rgba(255,255,255,.08);
+  --glass:rgba(255,255,255,.05);
+  --font-ui:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}   /* иначе правило svg{display:block} перебивает атрибут */
+
+html,body{height:100%}
+body{
+  margin:0;overflow:hidden;
+  font-family:var(--font-ui);
+  color:var(--ink);
+  user-select:none;
+  -webkit-user-select:none;
+  cursor:default;
+  /* подложка чуть уходит в цвет обложки - как и весь интерфейс большого окна */
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--ac),.20), transparent 62%),
+    color-mix(in srgb, rgb(var(--ac)) 7%, #08070a);
+}
+
+/* тонкая рамка по краю: окно без системной рамки иначе сливается с чужими окнами */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;
+  border:1px solid color-mix(in srgb, rgb(var(--ac)) 30%, rgba(255,255,255,.1));
+  /* снизу рамки нет: там и так лежит полоса перемотки, и она бы её подрезала */
+  border-bottom:0;
+}
+
+.card{
+  display:flex;align-items:center;gap:12px;
+  height:calc(100% - 4px);
+  padding:0 12px;
+  -webkit-app-region:drag;
+}
+
+/* ---- обложка ---- */
+.art{
+  width:78px;height:78px;flex:none;position:relative;
+  border-radius:11px;overflow:hidden;
+  background:var(--glass);
+  border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 22px rgba(0,0,0,.5), 0 0 0 1px rgba(var(--ac),.12);
+}
+.art img{width:100%;height:100%;object-fit:cover;display:none}
+.art.has img{display:block}
+.art.has .art-ph{display:none}
+.art-ph{font-size:24px;color:var(--dim2)}
+
+/* ---- подписи ---- */
+.meta{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px}
+
+.line{display:flex;align-items:center;gap:6px}
+.title{
+  flex:1;min-width:0;
+  font-size:13.5px;font-weight:600;letter-spacing:.1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.artist{
+  font-size:11.5px;color:var(--dim);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* ---- кнопки ---- */
+.ctrl{display:flex;align-items:center;gap:2px;margin-top:6px}
+
+button{
+  -webkit-app-region:no-drag;
+  border:0;background:none;padding:0;margin:0;
+  color:var(--ink);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:9px;
+  transition:background var(--t,.14s) var(--ease), color var(--t,.14s) var(--ease), transform var(--t,.14s) var(--ease);
+}
+button:focus-visible{outline:2px solid rgba(var(--ac),.8);outline-offset:1px}
+
+.ghost{width:26px;height:26px;color:var(--dim)}
+.ghost svg{width:14px;height:14px;fill:currentColor}
+.ghost:hover{background:var(--glass);color:var(--ink)}
+.ghost:active{transform:scale(.92)}
+
+.play{
+  width:30px;height:30px;margin:0 2px;
+  background:rgb(var(--ac));color:#0a0910;
+  box-shadow:0 4px 14px rgba(var(--ac),.4);
+}
+.play svg{width:15px;height:15px;fill:currentColor}
+.play:hover{filter:brightness(1.12)}
+.play:active{transform:scale(.93)}
+
+/* сердечко на своём месте слева, но пока трек не наш - его не за что цеплять */
+.heart.on{color:rgb(var(--ac))}
+.heart[disabled]{opacity:.25;pointer-events:none}
+
+/* кнопка «вернуть большое окно» - в правом верхнем углу, поверх названия */
+.up{width:22px;height:22px;flex:none;color:var(--dim2)}
+.up svg{width:12px;height:12px}
+
+.time{
+  margin-left:auto;padding-right:2px;
+  font-size:11px;color:var(--dim2);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---- полоса внизу ---- */
+.seek{
+  -webkit-app-region:no-drag;
+  position:fixed;left:0;right:0;bottom:0;height:4px;
+  background:rgba(255,255,255,.07);
+  cursor:pointer;
+}
+/* область нажатия шире самой полосы: в четыре пикселя мышью не попасть */
+.seek::before{content:"";position:absolute;left:0;right:0;bottom:0;height:12px}
+.seek-fill{
+  height:100%;width:0;
+  background:rgb(var(--ac));
+  box-shadow:0 0 10px rgba(var(--ac),.6);
+}
+.seek-knob{
+  position:absolute;top:50%;left:0;width:9px;height:9px;
+  margin:-4.5px 0 0 -4.5px;border-radius:50%;
+  background:rgb(var(--ac));
+  opacity:0;transition:opacity .14s var(--ease);
+}
+.seek:hover .seek-knob{opacity:1}
+
+@media (prefers-reduced-motion:reduce){
+  *{--t:0s !important}
+  .seek-knob{transition:none}
+}

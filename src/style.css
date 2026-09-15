@@ -590,20 +590,40 @@ a:hover{text-decoration:underline}
 
 /* ===== шапка плейлиста ===== */
 .pl-head{
-  flex:none;display:flex;align-items:center;gap:14px;
-  padding:12px 20px;border-bottom:1px solid var(--line);
+  flex:none;display:flex;align-items:center;gap:16px;
+  padding:16px 20px;border-bottom:1px solid var(--line);
 }
 .pl-cover{
-  width:54px;height:54px;flex:none;border-radius:11px;overflow:hidden;
+  width:78px;height:78px;flex:none;border-radius:12px;overflow:hidden;
   background:var(--glass2);border:1px solid var(--line);
   background-size:cover;background-position:center;
   display:flex;align-items:center;justify-content:center;
-  font-size:20px;color:var(--dim2);
+  font-size:26px;color:var(--dim2);
+  box-shadow:0 8px 24px rgba(0,0,0,.45);
 }
 .pl-cover.has span{display:none}
 .pl-meta{flex:1;min-width:0}
-.pl-name{font-size:17px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pl-sub{font-size:12px;color:var(--dim2);margin-top:2px}
+
+.pl-kind{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim2)}
+.pl-name{
+  font-size:22px;font-weight:650;color:var(--ink);line-height:1.15;margin:2px 0 3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pl-by{font-size:12.5px;color:var(--dim)}
+
+/* Описание правится на месте. Под мышью подсвечивается - иначе не догадаться,
+   что по нему можно нажать. */
+.pl-desc{
+  font-size:12.5px;color:var(--dim);margin:3px 0 0 -4px;padding:1px 4px;
+  max-width:560px;border-radius:6px;outline:none;cursor:text;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:background var(--t-fast) var(--ease);
+}
+.pl-desc:empty::before{content:attr(data-ph);color:var(--dim2);opacity:.7}
+.pl-desc:hover{background:var(--glass)}
+.pl-desc:focus{background:var(--glass2);box-shadow:0 0 0 1px var(--line);white-space:normal}
+
+.pl-sub{font-size:12px;color:var(--dim2);margin-top:5px}
 
 /* миниатюра в чипе плейлиста */
 .chip-ava{
@@ -894,9 +914,60 @@ a:hover{text-decoration:underline}
   display:flex;align-items:center;gap:12px;padding:0 12px;
   border-radius:10px;cursor:pointer;transition:background .14s;
 }
+/* пока трек несут, соседи расступаются - но только тогда: при обычной
+   прокрутке строки переиспользуются, и плавный переезд смазал бы весь список */
+body.dragging .row{transition:background .14s,top calc(var(--motion) * .16s) var(--ease)}
+body.dragging .row-ghost{transition:none}
 .row:hover{background:var(--glass)}
 .row.on{background:rgba(var(--ac),.13)}
 .row-n{width:26px;flex:none;text-align:right;font-size:11.5px;color:var(--dim2);font-variant-numeric:tabular-nums}
+
+/* ===== порядок в плейлисте мышью =====
+   номер строки под мышью уступает место точкам «возьми и перетащи».
+   показываем их только там, где порядок вообще можно менять */
+.row-grip{display:none;width:26px;flex:none;align-items:center;justify-content:center;color:var(--dim2);cursor:grab}
+.row-grip svg{width:10px;height:16px;fill:currentColor}
+.row:hover .row-n{display:none}
+.row:hover .row-grip{display:flex}
+.row.on:hover .row-grip{color:rgb(var(--ac))}
+
+/* сама строка остаётся на месте бледной тенью, а под мышью едет её копия */
+.row.lifted{opacity:.22}
+.row-ghost{
+  position:fixed;z-index:60;pointer-events:none;
+  background:var(--panel2);
+  border:1px solid rgba(var(--ac),.4);
+  box-shadow:0 16px 38px rgba(0,0,0,.55);
+  backdrop-filter:blur(14px);
+  transition:none;
+}
+.row-ghost .row-act{opacity:0}
+
+/* Трек в руке - вкладки показывают, что готовы его принять.
+   Своего имени .drop тут не берём: оно уже занято подложкой для файлов,
+   брошенных в окно, и та прячет всё, на что попадёт.
+   [data-tab] у последнего правила лишний по смыслу, но нужен по весу:
+   без него рамка цели проиграла бы пунктиру сверху. */
+body.dragging #lib-chips .chip[data-tab]{
+  border-color:rgba(var(--ac),.45);
+  border-style:dashed;
+}
+body.dragging #lib-chips .chip[data-tab="all"]{
+  border-color:var(--line);
+  border-style:solid;
+}
+body.dragging #lib-chips .chip[data-tab].chip-drop{
+  background:rgba(var(--ac),.24);
+  border-color:rgb(var(--ac));
+  border-style:solid;
+  color:var(--ink);
+  transform:translateY(-1px);
+}
+
+body.dragging{cursor:grabbing;user-select:none}
+body.dragging .row,body.dragging .row-grip{cursor:grabbing}
+body.dragging .row:hover{background:none}
+body.dragging .row.on:hover{background:rgba(var(--ac),.13)}
 .row.on .row-n{color:rgb(var(--ac))}
 .row-art{
   width:36px;height:36px;flex:none;border-radius:7px;overflow:hidden;
