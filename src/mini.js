@@ -5,10 +5,12 @@
 
 const $ = id => document.getElementById(id);
 
+// как в большом окне: часы показываем только когда они есть
 const fmt = s => {
   s = Math.max(0, Math.floor(s || 0));
-  const m = Math.floor(s / 60);
-  return m + ':' + String(s % 60).padStart(2, '0');
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  const mm = String(m).padStart(h ? 2 : 1, '0');
+  return (h ? h + ':' : '') + mm + ':' + String(x).padStart(2, '0');
 };
 
 let st = { playing: false, position: 0, duration: 0, canFav: false, fav: false };
@@ -114,6 +116,13 @@ seek.addEventListener('pointerup', e => {
   dragging = false;
   try { seek.releasePointerCapture(e.pointerId); } catch {}
   cmd('seek:' + pctAt(e).toFixed(5));
+});
+
+// перемотку оборвали - возвращаем полосу к настоящему времени
+seek.addEventListener('pointercancel', () => {
+  if (!dragging) return;
+  dragging = false;
+  paintTime();
 });
 
 /* ---- клавиши ---- */
