@@ -4,28 +4,31 @@
 # машина GitHub. Запускается руками (вкладка Actions -> Run workflow)
 # или сама, когда появляется тег версии.
 #
-# Готовые файлы лежат во вкладке Actions как артефакты. В релиз ничего
-# не выкладывается само - это делает человек.
+# Обычный запуск просто складывает готовые файлы во вкладку Actions.
+# А если пришёл тег версии - те же файлы отправляются в релиз, но ЧЕРНОВИКОМ:
+# наружу он не виден, обновление никому не предлагается, пока человек сам
+# не нажмёт "Publish release".
 
 name: Сборка
 
 on:
-  # Кнопка "запустить" в Actions появляется только у файлов из главной ветки,
-  # поэтому пока ветка linux собирается сама при каждом пуше.
+  # Кнопка "запустить" в Actions - вкладка Actions -> Сборка -> Run workflow.
   workflow_dispatch:
   push:
-    branches:
-      - linux
     tags:
       - '*'
 
+# на запись - чтобы сборка по тегу могла завести черновик релиза
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     strategy:
       fail-fast: false
+      # по одной машине за раз: при сборке по тегу обе заливают файлы в один
+      # и тот же черновик релиза, и параллельно они дрались бы за право его завести
+      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-latest
@@ -47,7 +50,10 @@ jobs:
         run: npm ci
 
       - name: Собрать
-        run: npx electron-builder --publish never
+        # тег - значит релиз (черновиком), всё остальное - просто артефакты
+        run: npx electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Забрать готовое
         uses: actions/upload-artifact@v4
