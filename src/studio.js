@@ -15,6 +15,7 @@ const STU = {
   rec: null,
   chunks: [],
   raf: 0,
+  recC: null,          // холст записи: превью во время клипа берёт кадр у него
   dest: null,
   img: null,
   imgSrc: '',
@@ -22,6 +23,26 @@ const STU = {
   bgKey: '',
   sm: new Float32Array(84)
 };
+
+/* ---------- что просит тема ----------
+   кадр должен быть похож на то, что человек видит в окне прямо сейчас,
+   а не жить своей жизнью. отсюда берём форму обложки, фон, вид спектра
+   и его силу - цвет и шрифты кадр и так брал из темы */
+
+function stuTheme() {
+  const th = (S.cfg && S.cfg.theme) || {};
+  return {
+    disc:  th.disc || 'vinyl',
+    // видео и картинку по ссылке кадр повторить не может - для него это
+    // всё равно «обложка размытая»; ровный фон учитываем честно
+    plain: th.bg === 'plain',
+    dim:   Math.min(0.9, Math.max(0, (th.bgDim ?? 42) / 100)),
+    blur:  Math.max(0, (th.bgBlur ?? 80) / 100),
+    viz:   th.viz || 'ring',
+    power: Math.max(0.3, (th.vizPower ?? 100) / 100),
+    alpha: Math.min(1, Math.max(0.15, (th.vizAlpha ?? 100) / 100))
+  };
+}
 
 /* ---------- обложка и фон ---------- */
 
@@ -41,7 +62,9 @@ function stuCover() {
 
 // размытый фон считаем один раз на обложку и формат: blur в каждом кадре съел бы всё
 function stuBg(W, H) {
-  const key = W + 'x' + H + '|' + STU.imgSrc + '|' + (STU.img ? '1' : '0') + '|' + accentRgb();
+  const th = stuTheme();
+  const key = [W, H, STU.imgSrc, STU.img ? 1 : 0, accentRgb(),
+               th.plain ? 'plain' : 'cover', th.dim, th.blur].join('|');
   if (STU.bgKey === key && STU.bg) return STU.bg;
 
   const c = STU.bg || document.createElement('canvas');
@@ -53,23 +76,24 @@ function stuBg(W, H) {
   x.fillRect(0, 0, W, H);
 
   const im = STU.img;
-  if (im && im.width) {
+  if (im && im.width && !th.plain) {
     const s = Math.max(W / im.width, H / im.height) * 1.35;
     const dw = im.width * s, dh = im.height * s;
     x.save();
-    x.filter = 'blur(' + Math.round(Math.min(W, H) * 0.09) + 'px) saturate(1.5) brightness(.62)';
+    // в окне размытие задано в пикселях экрана; кадр крупнее, поэтому берём долей
+    x.filter = 'blur(' + Math.round(Math.min(W, H) * 0.11 * th.blur) + 'px) saturate(1.5) brightness(.62)';
     x.drawImage(im, (W - dw) / 2, (H - dh) / 2, dw, dh);
     x.restore();
   } else {
     const g = x.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, 'rgba(' + ac + ',.35)');
+    g.addColorStop(0, 'rgba(' + ac + ',' + (th.plain ? '.18' : '.35') + ')');
     g.addColorStop(1, '#08070a');
     x.fillStyle = g;
     x.fillRect(0, 0, W, H);
   }
 
   // затемнение и виньетка, чтобы текст читался при любой обложке
-  x.fillStyle = 'rgba(8,7,10,.46)';
+  x.fillStyle = 'rgba(8,7,10,' + (th.plain ? th.dim * 0.5 : th.dim).toFixed(3) + ')';
   x.fillRect(0, 0, W, H);
   const v = x.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.max(W, H) * 0.75);
   v.addColorStop(0, 'rgba(0,0,0,0)');
@@ -82,30 +106,42 @@ function stuBg(W, H) {
   return c;
 }
 
-/* ---------- раскладка кадра ---------- */
+/* ---------- раскладка кадра ----------
+   обложка занимает половину кадра, под ней мелким: название, исполнитель
+   и полоса времени. текст песни - справа (широкий) или ниже (остальные) */
 
-function stuLayout(kind, W, H) {
+function stuLayout(kind, W, H, hasLy) {
+  const size = Math.min(W, H);      // все размеры считаем от короткой стороны
+  const d = size * 0.5;
+
   if (kind === 'wide') {
-    const d = H * 0.54;
+    // без текста колонке незачем жаться к левому краю - ставим её посередине
+    const cx = hasLy ? W * 0.27 : W * 0.5;
+    const cy = hasLy ? H * 0.40 : H * 0.42;
     return {
-      d, cx: W * 0.29, cy: H * 0.5, size: H, align: 'left',
-      tx: W * 0.5, tw: W * 0.42,
-      titleY: H * 0.34, lyY: H * 0.58, lyW: W * 0.42
+      size, d, cx, cy, align: 'center', tx: cx, tw: d * 1.45,
+      infoY: cy + d / 2 + size * 0.062,
+      barW: d,
+      lyX: W * 0.57, lyW: W * 0.37, lyY: H * 0.52, lyAlign: 'left'
     };
   }
+
   if (kind === 'square') {
-    const d = W * 0.42;
+    const cx = W / 2, cy = hasLy ? H * 0.30 : H * 0.42;
     return {
-      d, cx: W / 2, cy: H * 0.3, size: H, align: 'center',
-      tx: W / 2, tw: W * 0.82,
-      titleY: H * 0.3 + d / 2 + H * 0.09, lyY: H * 0.78, lyW: W * 0.82
+      size, d, cx, cy, align: 'center', tx: cx, tw: W * 0.8,
+      infoY: cy + d / 2 + size * 0.055,
+      barW: d,
+      lyX: cx, lyW: W * 0.82, lyY: H * 0.83, lyAlign: 'center'
     };
   }
-  const d = W * 0.58;
+
+  const cx = W / 2, cy = hasLy ? H * 0.28 : H * 0.44;
   return {
-    d, cx: W / 2, cy: H * 0.3, size: H, align: 'center',
-    tx: W / 2, tw: W * 0.86,
-    titleY: H * 0.3 + d / 2 + H * 0.05, lyY: H * 0.73, lyW: W * 0.86
+    size, d, cx, cy, align: 'center', tx: cx, tw: W * 0.84,
+    infoY: cy + d / 2 + size * 0.062,
+    barW: d,
+    lyX: cx, lyW: W * 0.84, lyY: H * 0.73, lyAlign: 'center'
   };
 }
 
@@ -157,10 +193,10 @@ function stuKaraoke(x, lines, ax, y, lineH, p, ac, align) {
 
 /* ---------- кольцо спектра вокруг обложки ---------- */
 
-function stuRing(x, L, ac, live, advance) {
+function stuRing(x, L, ac, live, advance, power) {
   const N = STU.sm.length;
   const r0 = L.d / 2 + L.size * 0.012;
-  const out = L.size * 0.055;
+  const out = L.size * 0.055 * (power || 1);
 
   x.lineCap = 'round';
   x.lineWidth = Math.max(1.5, L.size * 0.0038);
@@ -188,13 +224,104 @@ function stuRing(x, L, ac, live, advance) {
   }
 }
 
+/* ---------- спектр из темы ----------
+   Виды из viz2.js и viz3.js нарочно написаны так, что всё нужное им отдают
+   одним объектом: их можно нарисовать на любом холсте, и кадр выходит ровно
+   как окно. Остальные двенадцать живут внутри app.js и привязаны к экранному
+   холсту вместе со своим состоянием - для них остаётся кольцо. */
+
+function stuViz(x, W, H, L, ac, live, advance) {
+  const th = stuTheme();
+  if (th.viz === 'off') return;
+
+  const big = (window.VIZ2 && window.VIZ2[th.viz]) || (window.VIZ3 && window.VIZ3[th.viz]);
+
+  x.save();
+  x.globalAlpha = th.alpha;
+  if (big) {
+    big({
+      x: x, w: W, h: H,
+      geo: { cx: L.cx, cy: L.cy, r: L.d / 2 },
+      freq: freq, time: timeData, live: live,
+      beat: beatSm, hit: beatNow,
+      t: vizClock, dt: vizDt * vizSpd, p: th.power, ac: ac
+    });
+  } else {
+    stuRing(x, L, ac, live, advance, th.power);
+  }
+  x.restore();
+}
+
+/* ---------- форма обложки ---------- */
+
+// та же, что выбрана в теме: пластинка, скруглённый квадрат или просто квадрат
+function stuShape(x, cx, cy, d, kind) {
+  const r = d / 2;
+  x.beginPath();
+  if (kind === 'vinyl') x.arc(cx, cy, r, 0, 6.283);
+  else x.roundRect(cx - r, cy - r, d, d, d * (kind === 'square' ? 0.075 : 0.052));
+  x.closePath();
+}
+
+/* ---------- полоса времени ---------- */
+
+// идёт сразу под исполнителем, а не по нижнему краю кадра: так весь блок
+// "обложка - название - исполнитель - время" читается одной колонкой
+function stuBar(x, L, y, ac, fUi, t) {
+  const dur = (t && t.duration) || audio.duration || 0;
+  const bw = L.barW, bx = L.tx - bw / 2;
+  const hh = Math.max(2, L.size * 0.0035);
+  const k = dur > 0 ? Math.max(0, Math.min(1, curTime() / dur)) : 0;
+
+  x.fillStyle = 'rgba(255,255,255,.14)';
+  x.fillRect(bx, y, bw, hh);
+  if (k > 0) {
+    x.fillStyle = 'rgb(' + ac + ')';
+    x.fillRect(bx, y, bw * k, hh);
+  }
+
+  const ts = L.size * 0.017;
+  const ty = y + L.size * 0.032;
+  x.font = '400 ' + ts + 'px ' + fUi;
+  x.fillStyle = 'rgba(236,233,240,.42)';
+  x.textAlign = 'left';
+  x.fillText(fmt(curTime()), bx, ty);
+  x.textAlign = 'right';
+  if (dur > 0) x.fillText(fmt(dur), bx + bw, ty);
+
+  // между временами - подпись: кадр уезжает в чужие ленты, пусть говорит, чей он.
+  // ромбик рисуем сами, чтобы не зависеть от того, есть ли значок в шрифте
+  const mark = 'Вслух';
+  x.textAlign = 'left';
+  const mw = x.measureText(mark).width;
+  const dsz = ts * 0.34, gap = ts * 0.44;
+  const mx = L.tx - (mw + gap + dsz) / 2;
+
+  x.save();
+  x.translate(mx + dsz / 2, ty - ts * 0.31);
+  x.rotate(Math.PI / 4);
+  x.fillStyle = 'rgba(' + ac + ',.8)';
+  x.fillRect(-dsz / 2, -dsz / 2, dsz, dsz);
+  x.restore();
+
+  x.fillStyle = 'rgba(236,233,240,.34)';
+  x.fillText(mark, mx + dsz + gap, ty);
+
+  x.textAlign = L.align;
+  return ty;
+}
+
 /* ---------- сам кадр ---------- */
 
 function stuFrame(x, W, H, opts) {
   const advance = !!(opts && opts.advance);
   const live = !!analyser && !audio.paused;
   const ac = accentRgb();
-  const L = stuLayout(STU.fmt, W, H);
+  const th = stuTheme();
+  // без синхронного текста нижняя половина кадра пустовала бы - раскладка
+  // про это знает и ставит обложку с подписями посередине
+  const hasLy = !!(LY.lines.length && !LY.plain);
+  const L = stuLayout(STU.fmt, W, H, hasLy);
   const t = S.track;
 
   x.clearRect(0, 0, W, H);
@@ -204,16 +331,14 @@ function stuFrame(x, W, H, opts) {
   const fLy = cs.getPropertyValue('--font-ly').trim() || 'sans-serif';
   const fUi = cs.getPropertyValue('--font-ui').trim() || 'sans-serif';
 
-  stuRing(x, L, ac, live, advance);
+  stuViz(x, W, H, L, ac, live, advance);
 
-  // обложка кружком, как в самом плеере
+  // обложка той же формы, что и в окне
   const im = stuCover();
   x.save();
-  x.beginPath();
-  x.arc(L.cx, L.cy, L.d / 2, 0, 6.283);
-  x.closePath();
+  stuShape(x, L.cx, L.cy, L.d, th.disc);
   x.shadowColor = 'rgba(0,0,0,.6)';
-  x.shadowBlur = L.size * 0.04;
+  x.shadowBlur = L.size * (th.disc === 'plain' ? 0.03 : 0.04);
   x.fillStyle = '#15131d';
   x.fill();
   x.shadowBlur = 0;
@@ -224,36 +349,44 @@ function stuFrame(x, W, H, opts) {
   }
   x.restore();
 
-  // дырка от пластинки
-  x.fillStyle = 'rgba(0,0,0,.85)';
-  x.beginPath();
-  x.arc(L.cx, L.cy, L.d * 0.07, 0, 6.283);
-  x.fill();
+  // дырка бывает только у пластинки
+  if (th.disc === 'vinyl') {
+    x.fillStyle = 'rgba(0,0,0,.85)';
+    x.beginPath();
+    x.arc(L.cx, L.cy, L.d * 0.075, 0, 6.283);
+    x.fill();
+  }
 
   x.textAlign = L.align;
   x.textBaseline = 'alphabetic';
 
-  // название и артист
-  const titleSize = L.size * 0.042;
-  x.font = '700 ' + titleSize + 'px ' + fLy;
+  // под обложкой мелким: название, исполнитель, полоса времени
+  let y = L.infoY;
+
+  const tSize = L.size * 0.032;
+  x.font = '600 ' + tSize + 'px ' + fLy;
   x.fillStyle = '#fff';
   const title = (t && t.title) || 'Ничего не играет';
-  const tl = stuWrap(x, title, L.tw).slice(0, 2);
-  let ty = L.titleY;
-  for (const l of tl) { x.fillText(l, L.tx, ty); ty += titleSize * 1.18; }
+  for (const l of stuWrap(x, title, L.tw).slice(0, 2)) { x.fillText(l, L.tx, y); y += tSize * 1.2; }
 
-  x.font = '400 ' + (L.size * 0.026) + 'px ' + fUi;
-  x.fillStyle = 'rgba(236,233,240,.56)';
-  if (t && t.artist) x.fillText(t.artist, L.tx, ty + L.size * 0.008);
+  const aSize = L.size * 0.023;
+  if (t && t.artist) {
+    x.font = '400 ' + aSize + 'px ' + fUi;
+    x.fillStyle = 'rgba(236,233,240,.52)';
+    x.fillText(t.artist, L.tx, y + aSize * 0.2);
+    y += aSize * 1.4;
+  }
+
+  stuBar(x, L, y + L.size * 0.03, ac, fUi, t);
 
   // текст песни: предыдущая строка, текущая с заливкой, следующая
-  if (LY.lines.length && !LY.plain) {
+  if (hasLy) {
     const now = curTime() + (Number(S.cfg.lyricsOffset) || 0);
     let i = -1;
     for (let k = 0; k < LY.lines.length; k++) { if (LY.lines[k].t <= now) i = k; else break; }
 
-    const big = L.size * 0.036;
-    const small = L.size * 0.025;
+    const big = L.size * 0.038;
+    const small = L.size * 0.026;
     const lineH = big * 1.28;
 
     // соседние строки ищем непустые: между куплетами в lrc стоят паузы,
@@ -265,12 +398,14 @@ function stuFrame(x, W, H, opts) {
       return null;
     };
 
+    x.textAlign = L.lyAlign;
+
     x.font = '400 ' + small + 'px ' + fLy;
     x.fillStyle = 'rgba(236,233,240,.22)';
     const prev = near(i - 1, -1);
     if (prev) {
       const pl = stuWrap(x, prev.text, L.lyW);
-      x.fillText(pl[0], L.tx, L.lyY - lineH * 1.45);
+      x.fillText(pl[0], L.lyX, L.lyY - lineH * 1.45);
     }
 
     x.font = '650 ' + big + 'px ' + fLy;
@@ -278,7 +413,7 @@ function stuFrame(x, W, H, opts) {
     let after = L.lyY;
     if (cur && cur.text) {
       const cl = stuWrap(x, cur.text, L.lyW).slice(0, 3);
-      after = stuKaraoke(x, cl, L.tx, L.lyY, lineH, Math.max(0, lineFill(now, i)), ac, L.align);
+      after = stuKaraoke(x, cl, L.lyX, L.lyY, lineH, Math.max(0, lineFill(now, i)), ac, L.lyAlign);
     }
 
     x.font = '400 ' + small + 'px ' + fLy;
@@ -286,30 +421,8 @@ function stuFrame(x, W, H, opts) {
     const next = near(i + 1, 1);
     if (next) {
       const nl = stuWrap(x, next.text, L.lyW);
-      x.fillText(nl[0], L.tx, after + lineH * 0.3);
+      x.fillText(nl[0], L.lyX, after + lineH * 0.3);
     }
-  }
-
-  // полоска времени по низу
-  const dur = (t && t.duration) || audio.duration || 0;
-  if (dur > 0) {
-    const bw = W * (STU.fmt === 'wide' ? 0.42 : 0.72);
-    const bx = STU.fmt === 'wide' ? L.tx : (W - bw) / 2;
-    const by = H - H * 0.06;
-    const hh = Math.max(2, H * 0.0035);
-    const k = Math.max(0, Math.min(1, curTime() / dur));
-
-    x.fillStyle = 'rgba(255,255,255,.14)';
-    x.fillRect(bx, by, bw, hh);
-    x.fillStyle = 'rgb(' + ac + ')';
-    x.fillRect(bx, by, bw * k, hh);
-
-    x.font = '400 ' + (L.size * 0.017) + 'px ' + fUi;
-    x.fillStyle = 'rgba(236,233,240,.42)';
-    x.textAlign = 'left';
-    x.fillText(fmt(curTime()), bx, by + H * 0.032);
-    x.textAlign = 'right';
-    x.fillText(fmt(dur), bx + bw, by + H * 0.032);
   }
 }
 
@@ -400,6 +513,7 @@ async function stuRecord() {
   const c = document.createElement('canvas');
   c.width = s.w; c.height = s.h;
   const x = c.getContext('2d');
+  STU.recC = c;
   stuFrame(x, s.w, s.h, { advance: false });     // первый кадр до старта потока
 
   const stream = new MediaStream([...c.captureStream(30).getVideoTracks(), at]);
@@ -422,6 +536,7 @@ async function stuRecord() {
     cancelAnimationFrame(STU.raf);
     STU.raf = 0;
     STU.rec = null;
+    STU.recC = null;
     paintStudio();
 
     const blob = new Blob(STU.chunks, { type: mime });
@@ -464,13 +579,26 @@ function stuPreview() {
   const k = 340 / s.h;                    // превью мелкое, оно только для глаз
   const w = Math.round(s.w * k), h = Math.round(s.h * k);
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-  // пока идёт запись, сглаживание двигает она - превью только показывает
-  stuFrame(c.getContext('2d'), w, h, { advance: !STU.rec });
+
+  // во время записи кадр уже собран в полном размере - просто уменьшаем его.
+  // собирать второй раз нельзя: у части видов состояние одно на всех
+  if (STU.rec && STU.recC) c.getContext('2d').drawImage(STU.recC, 0, 0, w, h);
+  else stuFrame(c.getContext('2d'), w, h, { advance: true });
 }
 
 function paintStudio() {
   document.querySelectorAll('#stu-fmt button').forEach(b => b.classList.toggle('on', b.dataset.v === STU.fmt));
-  document.querySelectorAll('#stu-len button').forEach(b => b.classList.toggle('on', +b.dataset.v === STU.secs));
+
+  let preset = false;
+  document.querySelectorAll('#stu-len button').forEach(b => {
+    const on = +b.dataset.v === STU.secs;
+    if (on) preset = true;
+    b.classList.toggle('on', on);
+  });
+  // своё время держим в поле, но пока оно совпало с готовым - поле пустое
+  const own = $('stu-own');
+  if (own && document.activeElement !== own) own.value = preset ? '' : String(STU.secs);
+  if (own) own.classList.toggle('on', !preset);
   const rec = $('stu-rec');
   rec.textContent = STU.rec ? 'Остановить' : 'Записать клип';
   rec.classList.toggle('on-air', !!STU.rec);
@@ -504,5 +632,15 @@ document.querySelectorAll('#stu-fmt button').forEach(b => {
 document.querySelectorAll('#stu-len button').forEach(b => {
   b.onclick = () => { STU.secs = +b.dataset.v; paintStudio(); };
 });
+
+// своё время: от трёх секунд до десяти минут - дольше клип не влезет ни в одну ленту
+$('stu-own').oninput = () => {
+  const v = Math.round(Number($('stu-own').value));
+  if (!Number.isFinite(v) || v < 3) return;
+  STU.secs = Math.min(600, v);
+  paintStudio();
+};
+$('stu-own').onblur = () => paintStudio();
+$('stu-own').onkeydown = e => { if (e.key === 'Enter') $('stu-own').blur(); };
 $('stu-png').onclick = () => stuCard();
 $('stu-rec').onclick = () => stuRecord();

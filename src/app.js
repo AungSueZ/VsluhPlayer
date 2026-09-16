@@ -4839,8 +4839,15 @@ function drawViz() {
   vizX.globalAlpha = vizA;
 
   const kind = th.viz || 'ring';
-  const big = (window.VIZ2 && window.VIZ2[kind]) || (window.VIZ3 && window.VIZ3[kind]);
-  if (big) {
+
+  // Пока открыта Студия, тот же вид рисует её холст, и окно всё равно закрыто
+  // её окошком. У части видов состояние одно на всех - нарисовать их сразу
+  // в двух размерах нельзя, начнут драться за свои же точки и кольца.
+  const busy = typeof STU !== 'undefined' && STU.open;
+
+  const big = busy ? null : (window.VIZ2 && window.VIZ2[kind]) || (window.VIZ3 && window.VIZ3[kind]);
+  if (busy) { /* рисует Студия */ }
+  else if (big) {
     big({
       x: vizX, w: vw, h: vh, geo: geo,
       freq: freq, time: timeData, live: live,

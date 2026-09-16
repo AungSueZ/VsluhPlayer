@@ -49,9 +49,13 @@ ROWS = [
  "Якщо у файлі обкладинки немає, застосунок пошукає її за виконавцем і назвою. Треки при цьому нікуди не надсилаються — лише текстовий запит.",
  "If the file has no artwork, the app looks it up by artist and title. The tracks themselves go nowhere — only a text query does."),
 
-("Кадр собирается заново, а не снимается с экрана: ни рамки окна, ни боковой панели. Берётся обложка, цвет из неё, спектр и строка текста с той же заливкой, что и в караоке.",
- "Кадр збирається заново, а не знімається з екрана: ні рамки вікна, ні бічної панелі. Береться обкладинка, колір із неї, спектр і рядок тексту з тією ж заливкою, що й у караоке.",
- "The frame is built from scratch rather than grabbed off the screen: no window chrome, no sidebar. It takes the artwork, its colour, the spectrum and a lyric line with the same fill as karaoke."),
+("Кадр собирается заново, а не снимается с экрана: ни рамки окна, ни боковой панели. Он повторяет выбранную тему — форму обложки, фон, цвет и вид спектра, — а строка текста заливается так же, как в караоке. Двенадцать видов спектра из двадцати четырёх привязаны к окну; вместо них в кадре остаётся кольцо.",
+ "Кадр збирається заново, а не знімається з екрана: ні рамки вікна, ні бічної панелі. Він повторює вибрану тему — форму обкладинки, тло, колір і вигляд спектра, — а рядок тексту заливається так само, як у караоке. Дванадцять виглядів спектра з двадцяти чотирьох прив'язані до вікна; замість них у кадрі лишається кільце.",
+ "The frame is built from scratch rather than grabbed off the screen: no window chrome, no sidebar. It follows the theme you picked — artwork shape, background, colour and spectrum — and the lyric line fills exactly as it does in karaoke. Twelve of the twenty-four spectrum styles are tied to the window; the frame falls back to the ring for those."),
+
+("своё", "своє", "own"),
+("своё время", "свій час", "custom length"),
+("сколько секунд писать, от 3 до 600", "скільки секунд писати, від 3 до 600", "how many seconds to record, 3 to 600"),
 
 ("Кидай в эту папку любые mp4 или webm — плеер перемешает их и будет крутить по кругу, плавно переключая.",
  "Кидай у цю теку будь-які mp4 чи webm — плеєр перемішає їх і крутитиме по колу, плавно перемикаючи.",

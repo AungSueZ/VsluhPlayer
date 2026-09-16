@@ -865,6 +865,21 @@ a:hover{text-decoration:underline}
 .pick button:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .pick button.on{background:rgba(var(--ac),.26);color:#fff}
 
+/* своё значение рядом с готовыми: то же гнездо, но в него можно вписать.
+   стрелки браузера убираем - они тут только мешают попадать мышью */
+.pick-own{
+  width:62px;padding:6px 8px;border:0;border-radius:8px;
+  background:rgba(255,255,255,.05);color:var(--dim);
+  font:inherit;font-size:12.5px;text-align:center;
+  transition:.16s var(--ease);
+}
+.pick-own::placeholder{color:var(--dim2)}
+.pick-own:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+.pick-own:focus{outline:none;color:#fff;background:rgba(var(--ac),.16)}
+.pick-own.on{background:rgba(var(--ac),.26);color:#fff}
+.pick-own::-webkit-outer-spin-button,
+.pick-own::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
 /* видов стало восемнадцать - без заголовков это была бы стена кнопок */
 .pick-wrap{padding:8px 8px 9px}
 .viz-group{
