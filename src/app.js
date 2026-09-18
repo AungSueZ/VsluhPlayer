@@ -4020,6 +4020,8 @@ function relabel() {
   go('темы', () => { if (typeof repaintTheme === 'function') repaintTheme(); });
   go('трек', () => { if (S.track) paintTrack(S.track); });
   go('поиск', () => { if (typeof renderSearch === 'function' && sqResults.length) renderSearch(); });
+  // заглушка про облако; если её удалят, строка просто ничего не сделает
+  go('облако', () => { if (typeof renderCloud === 'function') renderCloud(); });
 }
 
 /* ---- перетаскивание файлов в окно ---- */

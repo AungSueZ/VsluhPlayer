@@ -844,6 +844,32 @@
              сама музыка остаётся на диске. Ключи и токены в бэкап не записываются.</p>
         </div>
 
+        <!-- ЗАГЛУШКА про облако. Ничего не отправляет и никуда не ходит.
+             Удаляется целиком: этот блок, src/cloud.js, строка со script внизу
+             и раздел "облако - заглушка" в style.css. -->
+        <div class="set-block set-try" id="cloud-block">
+          <h3>Облако <span class="tag-try">проба</span></h3>
+          <p class="hint">Так это выглядело бы, если бы плейлисты, любимое и оформление
+             жили не только на этом компьютере. <b>Пока наружу не уходит ничего</b> —
+             ни сейчас, ни от кнопок ниже: связи с сервером в этой сборке нет вовсе.</p>
+
+          <label class="sw"><input type="checkbox" id="s-cloud"><i></i><span>Синхронизировать плейлисты и оформление</span></label>
+
+          <div class="pf-stats" id="cloud-stat"></div>
+          <p class="hint" id="cloud-note"></p>
+
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="cloud-what">Что ушло бы наружу</button>
+            <button class="btn btn-ghost" id="cloud-try">Сверить понарошку</button>
+          </div>
+
+          <pre class="cloud-peek" id="cloud-peek" hidden></pre>
+
+          <p class="hint">Музыка не уехала бы никуда и ни при каком раскладе — только списки и настройки.
+             Ключи и токены в этот список не попадают вовсе. А вот обещание на сайте пришлось бы
+             переписать: там сказано, что плеер не заводит аккаунтов и ничего о тебе не знает.</p>
+        </div>
+
         <div class="set-block">
           <h3>Конфиденциальность</h3>
           <p class="hint">Плеер не заводит аккаунтов, не собирает статистику и не следит за тобой.
@@ -1126,6 +1152,7 @@
 <script src="viz3.js"></script>
 <script src="app.js"></script>
 <script src="studio.js"></script>
+<script src="cloud.js"></script>
 <script src="lyprev.js"></script>
 <script src="show.js"></script>
 </body>
