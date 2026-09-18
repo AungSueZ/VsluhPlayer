@@ -11,7 +11,15 @@
      5. строка go('облако', ...) в relabel() в app.js
    В настройках и в сохранённых данных заглушка ничего не заводит. */
 
-const CLOUD = { on: false, peek: false, busy: false };
+const CLOUD = {
+  on: false, peek: false, busy: false,
+  // вход - тоже понарошку. Почта живёт в памяти до закрытия окна и никуда
+  // не записывается: ни в settings.json, ни в хранилище браузера, ни наружу.
+  // Пароля нет нарочно: нечего придумывать, нечего хранить и нечего терять
+  auth: { step: 'out', mail: '' }        // out | sent | in
+};
+
+const MAILISH = /^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$/;
 
 /* ---------- что вообще поехало бы наружу ----------
    Список нарочно белый, а не "всё кроме": так новая настройка не уедет
@@ -52,6 +60,83 @@ function cloudSize() {
 
 const cloudHuman = n => (n < 1024 ? TF`${n} Б` : TF`${Math.round(n / 1024)} КБ`);
 
+/* ---------- вход ---------- */
+
+function renderAuth() {
+  const box = $('cloud-auth');
+  if (!box) return;
+  box.textContent = '';
+
+  const a = CLOUD.auth;
+
+  if (a.step === 'in') {
+    const card = el('div', 'cloud-me');
+    const ava = el('div', 'cloud-ava');
+    ava.textContent = (a.mail[0] || '?');
+    const m = el('div', 'cloud-me-m');
+    const b = el('b'); b.textContent = a.mail;
+    const sp = el('span'); sp.textContent = T('вошёл понарошку · ни сеанса, ни ключа');
+    m.append(b, sp);
+    const out = el('button', 'btn btn-ghost');
+    out.textContent = T('Выйти');
+    out.onclick = () => { CLOUD.auth = { step: 'out', mail: '' }; CLOUD.on = false; renderCloud(); };
+    card.append(ava, m, out);
+    box.appendChild(card);
+    return;
+  }
+
+  if (a.step === 'sent') {
+    const h = el('p', 'hint');
+    h.textContent = TF`Письмо ушло бы на ${a.mail}. Открыть ссылку — и всё.`;
+    const row = el('div', 'row-btns');
+    const go = el('button', 'btn');
+    go.textContent = T('Понарошку: я перешёл по ссылке');
+    go.onclick = () => { CLOUD.auth.step = 'in'; renderCloud(); };
+    const back = el('button', 'btn btn-ghost');
+    back.textContent = T('Другая почта');
+    back.onclick = () => { CLOUD.auth = { step: 'out', mail: '' }; renderCloud(); };
+    row.append(go, back);
+    box.append(h, row);
+    return;
+  }
+
+  const row = el('div', 'cloud-row');
+  const inp = el('input');
+  inp.type = 'email';
+  inp.id = 'cloud-mail';
+  inp.placeholder = T('почта');
+  inp.autocomplete = 'off';
+  inp.spellcheck = false;
+  inp.value = a.mail;
+
+  const send = el('button', 'btn');
+  send.textContent = T('Прислать ссылку');
+
+  const err = el('p', 'hint');
+
+  const tryIt = () => {
+    const v = inp.value.trim();
+    if (!MAILISH.test(v)) {
+      inp.classList.add('bad');
+      err.textContent = T('Это не похоже на почту.');
+      return;
+    }
+    CLOUD.auth = { step: 'sent', mail: v };
+    renderCloud();
+  };
+
+  send.onclick = tryIt;
+  inp.oninput = () => { inp.classList.remove('bad'); err.textContent = ''; CLOUD.auth.mail = inp.value; };
+  inp.onkeydown = e => { if (e.key === 'Enter') tryIt(); };
+
+  row.append(inp, send);
+
+  const note = el('p', 'hint');
+  note.textContent = T('Пароля нет: приходит письмо со ссылкой, по ней и вход. Нечего придумывать, нечего хранить и нечего у нас красть.');
+
+  box.append(row, note, err);
+}
+
 /* ---------- плитки ---------- */
 
 function renderCloud() {
@@ -77,15 +162,24 @@ function renderCloud() {
     box.appendChild(d);
   }
 
+  const inside = CLOUD.auth.step === 'in';
+
+  // без входа синхронизировать нечего и не с чем - переключатель это показывает
   const sw = $('s-cloud');
-  if (sw) sw.checked = CLOUD.on;
+  if (sw) { sw.checked = CLOUD.on && inside; sw.disabled = !inside; }
+  const lbl = sw && sw.closest('.sw');
+  if (lbl) lbl.style.opacity = inside ? '' : '.45';
 
   const note = $('cloud-note');
   if (note) {
-    note.textContent = CLOUD.on
-      ? T('Переключатель стоит, но он ни к чему не подключён — это макет.')
-      : T('Выключено. Впрочем, включать нечего: сервера нет.');
+    note.textContent = !inside
+      ? T('Сначала вход — потом уже синхронизация. Хотя и после входа синхронизировать не с чем: сервера нет.')
+      : CLOUD.on
+        ? T('Переключатель стоит, но он ни к чему не подключён — это макет.')
+        : T('Выключено. Впрочем, включать нечего: сервера нет.');
   }
+
+  renderAuth();
 }
 
 /* ---------- кнопки ---------- */

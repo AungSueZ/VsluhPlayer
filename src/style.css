@@ -1087,6 +1087,35 @@ body.paused .row-bars i{animation-play-state:paused}
   color:rgb(var(--ac));background:rgba(var(--ac),.16);
   border:1px solid rgba(var(--ac),.3);
 }
+/* вход - тоже заглушка: ни одно поле отсюда никуда не уходит и не сохраняется */
+.cloud-auth{margin:4px 0 10px}
+.cloud-row{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.cloud-row input{
+  flex:1;min-width:190px;
+  background:var(--glass);border:1px solid var(--line);border-radius:8px;
+  padding:8px 11px;outline:0;font:inherit;font-size:13px;color:var(--ink);
+  transition:.16s;
+}
+.cloud-row input:focus{border-color:rgba(var(--ac),.5);background:rgba(var(--ac),.07)}
+.cloud-row input.bad{border-color:rgba(255,120,120,.55)}
+
+/* карточка «вошёл»: кружок с первой буквой, почта и чем это на самом деле является */
+.cloud-me{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 13px;border-radius:12px;
+  background:var(--glass);border:1px solid var(--line);
+}
+.cloud-ava{
+  width:38px;height:38px;flex:none;border-radius:50%;
+  display:grid;place-items:center;
+  background:rgba(var(--ac),.22);color:#fff;
+  font-size:16px;font-weight:600;text-transform:uppercase;
+}
+.cloud-me-m{flex:1;min-width:0}
+.cloud-me-m b{display:block;font-size:13px;color:var(--ink);font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cloud-me-m span{display:block;font-size:11.5px;color:var(--dim2);margin-top:2px}
+
 .cloud-peek{
   max-height:260px;overflow:auto;margin:12px 0 0;
   padding:12px 14px;border-radius:12px;
