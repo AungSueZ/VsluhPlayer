@@ -5,7 +5,7 @@
 
    Удаляется целиком и без следов:
      1. этот файл
-     2. блок <div class="set-block set-try" id="cloud-block"> в index.html
+     2. блоки #cloud-block и #cloud-win в index.html
      3. строка <script src="cloud.js"></script> внизу index.html
      4. раздел "облако - заглушка" в style.css
      5. строка go('облако', ...) в relabel() в app.js
@@ -60,7 +60,93 @@ function cloudSize() {
 
 const cloudHuman = n => (n < 1024 ? TF`${n} Б` : TF`${Math.round(n / 1024)} КБ`);
 
-/* ---------- вход ---------- */
+/* ---------- вход ----------
+   Живёт в отдельном окне, как Студия: регистрация - это не строчка в
+   настройках, а отдельный разговор, и выглядеть должна соответственно.
+   Всё по-прежнему понарошку. */
+
+const cloudFoot = () => {
+  const f = el('div', 'cloud-win-foot');
+  f.textContent = T('Это заглушка. Ни одна буква отсюда никуда не уходит и нигде не сохраняется — ни на сервер, ни в настройки.');
+  return f;
+};
+
+function cloudWin(on) {
+  const w = $('cloud-win');
+  if (!w) return;
+  if (on) renderWin();
+  show(w, on);
+  if (on) { const i = $('cloud-win-mail'); if (i) i.focus(); }
+}
+
+function renderWin() {
+  const box = $('cloud-win-body');
+  if (!box) return;
+  box.textContent = '';
+
+  const a = CLOUD.auth;
+  const mark = el('div', 'cloud-win-mark');
+  const tt = el('div', 'cloud-win-t');
+  const ss = el('div', 'cloud-win-s');
+
+  // письмо ушло - ждём, пока человек по нему перейдёт
+  if (a.step === 'sent') {
+    mark.textContent = '✉';
+    tt.textContent = T('Проверь почту');
+    ss.textContent = TF`Письмо ушло бы на ${a.mail}. Открыть ссылку — и всё.`;
+
+    const go = el('button', 'btn');
+    go.textContent = T('Понарошку: я перешёл по ссылке');
+    go.onclick = () => { CLOUD.auth.step = 'in'; cloudWin(false); renderCloud(); };
+
+    const back = el('button', 'btn btn-ghost');
+    back.textContent = T('Другая почта');
+    back.onclick = () => { CLOUD.auth = { step: 'out', mail: '' }; renderWin(); };
+
+    box.append(mark, tt, ss, go, back, cloudFoot());
+    return;
+  }
+
+  mark.textContent = '◈';
+  tt.textContent = T('Вслух в облаке');
+  ss.textContent = T('Плейлисты, любимое и оформление — на всех твоих компьютерах. Сама музыка остаётся там, где лежит.');
+
+  const inp = el('input');
+  inp.type = 'email';
+  inp.id = 'cloud-win-mail';
+  inp.placeholder = T('почта');
+  inp.autocomplete = 'off';
+  inp.spellcheck = false;
+  inp.value = a.mail;
+
+  const err = el('p', 'cloud-win-err');
+  const send = el('button', 'btn');
+  send.textContent = T('Прислать ссылку');
+
+  const go = () => {
+    const v = inp.value.trim();
+    if (!MAILISH.test(v)) {
+      inp.classList.add('bad');
+      err.textContent = T('Это не похоже на почту.');
+      inp.focus();
+      return;
+    }
+    CLOUD.auth = { step: 'sent', mail: v };
+    renderWin();
+  };
+
+  send.onclick = go;
+  inp.oninput = () => { inp.classList.remove('bad'); err.textContent = ''; CLOUD.auth.mail = inp.value; };
+  inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+
+  const note = el('p', 'cloud-win-s');
+  note.style.margin = '14px 0 0';
+  note.textContent = T('Пароля нет: приходит письмо со ссылкой, по ней и вход. Нечего придумывать, нечего хранить и нечего у нас красть.');
+
+  box.append(mark, tt, ss, inp, err, send, note, cloudFoot());
+}
+
+/* ---- то, что видно в настройках ---- */
 
 function renderAuth() {
   const box = $('cloud-auth');
@@ -85,56 +171,12 @@ function renderAuth() {
     return;
   }
 
-  if (a.step === 'sent') {
-    const h = el('p', 'hint');
-    h.textContent = TF`Письмо ушло бы на ${a.mail}. Открыть ссылку — и всё.`;
-    const row = el('div', 'row-btns');
-    const go = el('button', 'btn');
-    go.textContent = T('Понарошку: я перешёл по ссылке');
-    go.onclick = () => { CLOUD.auth.step = 'in'; renderCloud(); };
-    const back = el('button', 'btn btn-ghost');
-    back.textContent = T('Другая почта');
-    back.onclick = () => { CLOUD.auth = { step: 'out', mail: '' }; renderCloud(); };
-    row.append(go, back);
-    box.append(h, row);
-    return;
-  }
-
-  const row = el('div', 'cloud-row');
-  const inp = el('input');
-  inp.type = 'email';
-  inp.id = 'cloud-mail';
-  inp.placeholder = T('почта');
-  inp.autocomplete = 'off';
-  inp.spellcheck = false;
-  inp.value = a.mail;
-
-  const send = el('button', 'btn');
-  send.textContent = T('Прислать ссылку');
-
-  const err = el('p', 'hint');
-
-  const tryIt = () => {
-    const v = inp.value.trim();
-    if (!MAILISH.test(v)) {
-      inp.classList.add('bad');
-      err.textContent = T('Это не похоже на почту.');
-      return;
-    }
-    CLOUD.auth = { step: 'sent', mail: v };
-    renderCloud();
-  };
-
-  send.onclick = tryIt;
-  inp.oninput = () => { inp.classList.remove('bad'); err.textContent = ''; CLOUD.auth.mail = inp.value; };
-  inp.onkeydown = e => { if (e.key === 'Enter') tryIt(); };
-
-  row.append(inp, send);
-
-  const note = el('p', 'hint');
-  note.textContent = T('Пароля нет: приходит письмо со ссылкой, по ней и вход. Нечего придумывать, нечего хранить и нечего у нас красть.');
-
-  box.append(row, note, err);
+  const row = el('div', 'row-btns');
+  const b = el('button', 'btn');
+  b.textContent = T('Войти или завести');
+  b.onclick = () => cloudWin(true);
+  row.appendChild(b);
+  box.appendChild(row);
 }
 
 /* ---------- плитки ---------- */
@@ -186,6 +228,15 @@ function renderCloud() {
 
 function cloudWire() {
   if (!$('cloud-block')) return;
+
+  $('cloud-win-x').onclick = () => cloudWin(false);
+  $('cloud-win').addEventListener('click', e => { if (e.target.id === 'cloud-win') cloudWin(false); });
+  // перехватываем раньше общего обработчика: пока окно открыто, Escape - его
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || $('cloud-win').hasAttribute('hidden')) return;
+    e.stopPropagation();
+    cloudWin(false);
+  }, true);
 
   $('s-cloud').onchange = e => { CLOUD.on = e.target.checked; renderCloud(); };
 
