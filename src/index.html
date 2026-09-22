@@ -730,9 +730,9 @@
           <label class="num">Куки браузера для YouTube
             <select id="s-cookies">
               <option value="">не использовать</option>
+              <option value="firefox">Firefox</option>
               <option value="chrome">Chrome</option>
               <option value="edge">Edge</option>
-              <option value="firefox">Firefox</option>
               <option value="brave">Brave</option>
               <option value="opera">Opera</option>
               <option value="vivaldi">Vivaldi</option>
@@ -742,6 +742,10 @@
              Если выбрать браузер, yt-dlp возьмёт из него куки и покажет ютубу, что ты залогинен.
              Куки читаются на этом компьютере и уходят только на сам YouTube — больше никуда.
              Браузер при этом лучше закрыть, иначе он держит свою базу занятой.</p>
+          <p class="hint"><b>Берите Firefox.</b> Chrome с некоторых пор шифрует свои куки так,
+             что снаружи их не прочитать, и скачивание падает с руганью про DPAPI. То же самое
+             у всех, кто сделан на его основе: Edge, Brave, Opera, Vivaldi. Если своих 18+ роликов
+             не качаешь, спокойно оставляй «не использовать» — на остальное куки не влияют.</p>
 
           <label class="num">Ключ YouTube API
             <input type="text" id="s-ytkey" placeholder="не нужен, если есть yt-dlp" spellcheck="false">
