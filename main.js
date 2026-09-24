@@ -290,6 +290,18 @@ const dlq = new DlQueue({
   getCookies: () => (store.all.dlCookies || '').trim(),
   onChange: st => send('dl:queue', st),
 
+  // что на самом деле ответил yt-dlp. В окне - одна строка по-русски,
+  // а разбираться без полного текста - гадание. Хвост в 64 КБ, не больше
+  onFail: (item, raw) => {
+    const file = path.join(app.getPath('userData'), 'dl.log');
+    try {
+      let old = '';
+      try { old = fs.readFileSync(file, 'utf8'); } catch {}
+      if (old.length > 64 * 1024) old = old.slice(-48 * 1024);
+      fs.writeFileSync(file, old + new Date().toISOString() + ' ' + item.url + '\n' + raw + '\n\n');
+    } catch {}
+  },
+
   // файл лёг на диск - заводим карточку и подбираем теги с обложкой
   onFile: async (file, item) => {
     const dir = downloadDir();
