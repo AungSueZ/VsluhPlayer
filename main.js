@@ -407,7 +407,8 @@ function wireIpc() {
     version: app.getVersion(),
     userData: app.getPath('userData'),
     platform: process.platform,
-    dev: DEV
+    dev: DEV,
+    packaged: app.isPackaged
   }));
 
   ipcMain.handle('settings:get', () => store.all);
